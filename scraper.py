@@ -4,6 +4,7 @@ import re
 import time
 import requests
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 HEADERS = {
     "User-Agent": (
@@ -12,127 +13,171 @@ HEADERS = {
     )
 }
 
-SESSION = requests.Session()
-SESSION.headers.update(HEADERS)
-
 def extract_video_url(soup):
-    """Detects .mp4 video links from product HTML."""
+    """Detects .mp4 video links from the main product page."""
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        text = a.get_text(strip=True).upper()
-        if ("VIDEO" in text or ".mp4" in href.lower()) and not href.startswith("javascript"):
+        if ("VIDEO" in a.get_text(strip=True).upper() or ".mp4" in href.lower()) and not href.startswith("javascript"):
             return href
     video_tag = soup.find("video")
     if video_tag and video_tag.get("src"):
         return video_tag["src"]
-    for btn in soup.find_all(["button", "a", "div"], onclick=True):
-        match = re.search(r"'(https?://[^']+\.mp4[^']*)'", btn["onclick"])
-        if match:
-            return match.group(1)
     return None
 
-def get_product_links_from_category(cat_url, base_url):
-    """Scrapes product links across pagination pages rapidly."""
-    links = set()
-    for page in range(1, 15):
-        paged_url = f"{cat_url}?page={page}" if "?" not in cat_url else f"{cat_url}&page={page}"
-        try:
-            res = SESSION.get(paged_url, timeout=10)
-            if res.status_code != 200:
-                break
-            soup = BeautifulSoup(res.text, "html.parser")
-            found_on_page = False
-            for a in soup.find_all("a", href=re.compile(r"-npi\d+-")):
-                href = a["href"]
-                if "whatsapp.com" in href or "facebook.com" in href:
-                    continue
-                full_url = href if href.startswith("http") else f"{base_url}/{href.lstrip('/')}"
-                links.add(full_url)
-                found_on_page = True
-            
-            if not found_on_page:
-                break
-        except Exception:
-            break
-    return list(links)
-
-def parse_product_page(prod_url, store_name, category_hint):
-    """Direct HTTP request to extract isolated media and details."""
+def get_urls_from_sitemap(base_url):
+    """Checks if the site has a sitemap to instantly grab URLs."""
+    urls = []
     try:
-        res = SESSION.get(prod_url, timeout=8)
-        if res.status_code != 200:
-            return None
-
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        title_el = soup.find("h1")
-        title = title_el.get_text(strip=True) if title_el else "Unknown Product"
-
-        price_el = soup.find("h6")
-        price_num = re.sub(r"[^\d]", "", price_el.get_text(strip=True)) if price_el else ""
-        base_price = int(price_num) if price_num else 0
-
-        # Category segregation
-        category = category_hint
-        url_lower = prod_url.lower()
-        if any(w in url_lower for w in ["shoe", "sneaker", "croc", "flipflop"]):
-            category = "footwear"
-        elif any(w in url_lower for w in ["bag", "clutch", "wallet"]):
-            category = "bag"
-
-        in_stock = "OUT OF STOCK" not in soup.get_text().upper()
-
-        # Strict image gallery extraction (ignoring related items)
-        images = []
-        main_area = soup.find("div", {"role": "main"}) or soup
-        for img in main_area.find_all("img", src=re.compile(r"gallery_(md|lg)")):
-            src = img["src"]
-            if src not in images:
-                images.append(src)
-
-        video_url = extract_video_url(soup)
-
-        if images and title != "Unknown Product":
-            return {
-                "vendor": store_name,
-                "category": category,
-                "title": title,
-                "base_price": base_price,
-                "in_stock": in_stock,
-                "images": images,
-                "video": video_url,
-                "url": prod_url
-            }
+        res = requests.get(f"{base_url}/sitemap.xml", headers=HEADERS, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.content, "xml")
+            for loc in soup.find_all("loc"):
+                url_text = loc.text.strip()
+                if "-npi" in url_text and "whatsapp.com" not in url_text:
+                    urls.append(url_text)
     except Exception:
         pass
-    return None
+    return urls
 
-def scrape_segment(store_name, base_url, category_path, slug):
-    base_url = base_url.rstrip("/")
-    cat_url = f"{base_url}/{category_path.lstrip('/')}" if category_path else base_url
-    print(f"\nScanning {store_name} -> {cat_url}")
-
-    product_urls = get_product_links_from_category(cat_url, base_url)
-    print(f"Found {len(product_urls)} links. Parsing products...")
-
+def scrape_vendor(store_name, base_url, slug):
     products = []
-    category_hint = "bag" if "bag" in category_path.lower() else "footwear"
+    base_url = base_url.rstrip("/")
 
-    for idx, url in enumerate(product_urls, start=1):
-        item = parse_product_page(url, store_name, category_hint)
-        if item:
-            products.append(item)
-            if idx % 10 == 0:
-                print(f"Processed {idx}/{len(product_urls)} items...")
+    print(f"\n==========================================")
+    print(f"Starting Deep Scraper for: {store_name}")
+    print(f"==========================================")
+
+    product_urls = get_urls_from_sitemap(base_url)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+        context = browser.new_context(user_agent=HEADERS["User-Agent"])
+        page = context.new_page()
+
+        page.route("**/*", lambda route: route.abort() 
+            if route.request.resource_type in ["stylesheet", "font", "media", "image"] 
+            else route.continue_()
+        )
+
+        # AGGRESSIVE FALLBACK SCROLLING: Captures deep/older inventory
+        if not product_urls:
+            categories = []
+            try:
+                page.goto(f"{base_url}/allcategory.html", timeout=15000, wait_until="domcontentloaded")
+                soup = BeautifulSoup(page.content(), "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if href.endswith(".html") and not any(x in href for x in ["login", "cart", "account", "order"]):
+                        full_url = href if href.startswith("http") else f"{base_url}/{href.lstrip('/')}"
+                        if full_url not in categories:
+                            categories.append(full_url)
+            except Exception:
+                pass
+
+            if not categories:
+                categories = [
+                    f"{base_url}/flipflops-footwear.html",
+                    f"{base_url}/men-rsquo-s-shoe-footwear.html",
+                    f"{base_url}/ladies-shoes-footwear-women.html",
+                    f"{base_url}/premium-shoes-footwear.html",
+                    base_url
+                ]
+
+            seen_links = set()
+            for cat_url in categories:
+                print(f"Extracting links from: {cat_url}")
+                try:
+                    page.goto(cat_url, timeout=15000, wait_until="domcontentloaded")
+                    # DEEP SCROLL: Click "View More" up to 30 times
+                    for _ in range(30):
+                        page.keyboard.press("End")
+                        time.sleep(0.8)
+                        try:
+                            view_more = page.get_by_text("View More", exact=False)
+                            if view_more.is_visible():
+                                view_more.click()
+                                time.sleep(1)
+                            else:
+                                break
+                        except:
+                            break
+                    
+                    soup = BeautifulSoup(page.content(), "html.parser")
+                    for a in soup.find_all("a", href=re.compile(r"-npi\d+-")):
+                        href = a["href"]
+                        if href.startswith("/"):
+                            href = base_url + href
+                        
+                        if href not in seen_links and "whatsapp.com" not in href:
+                            seen_links.add(href)
+                            product_urls.append(href)
+                except Exception:
+                    pass
+
+        product_urls = list(set(product_urls))
+        print(f"\nTotal product URLs found: {len(product_urls)}")
+
+        for prod_url in product_urls:
+            if "whatsapp.com" in prod_url or "facebook.com" in prod_url:
+                continue
+
+            try:
+                page.goto(prod_url, timeout=15000, wait_until="domcontentloaded")
+                p_soup = BeautifulSoup(page.content(), "html.parser")
+
+                title_el = p_soup.find("h1")
+                title = title_el.get_text(strip=True) if title_el else "Unknown Product"
+
+                price_el = p_soup.find("h6")
+                price_num = re.sub(r"[^\d]", "", price_el.get_text(strip=True)) if price_el else ""
+                base_price = int(price_num) if price_num else 0
+
+                category = "accessory"
+                url_lower = prod_url.lower()
+                if "shoe" in url_lower or "sneaker" in url_lower or "croc" in url_lower or "flipflop" in url_lower:
+                    category = "footwear"
+                elif "bag" in url_lower or "clutch" in url_lower or "wallet" in url_lower:
+                    category = "bag"
+
+                in_stock = "OUT OF STOCK" not in p_soup.get_text().upper()
+
+                images = []
+                main_area = p_soup.find("div", {"role": "main"})
+                if main_area:
+                    for img in main_area.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                        if img["src"] not in images: images.append(img["src"])
+                
+                if not images:
+                    for img in p_soup.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                        if img["src"] not in images: images.append(img["src"])
+
+                video_url = extract_video_url(p_soup)
+
+                if images and title != "Unknown Product":
+                    products.append({
+                        "vendor": store_name,
+                        "category": category,
+                        "title": title,
+                        "base_price": base_price,
+                        "in_stock": in_stock,
+                        "images": images,
+                        "video": video_url,
+                        "url": prod_url
+                    })
+                    print(f"✔ Scraped: {title[:35]}...")
+
+            except Exception:
+                pass
+
+        browser.close()
 
     output_filename = f"{slug}.json"
     with open(output_filename, "w", encoding="utf-8") as f:
         json.dump(products, f, indent=2, ensure_ascii=False)
-    print(f"Saved {len(products)} products to {output_filename}")
+    print(f"\nSaved {len(products)} products to {output_filename}")
 
 if __name__ == "__main__":
-    if len(sys.argv) >= 5:
-        scrape_segment(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    if len(sys.argv) >= 4:
+        scrape_vendor(sys.argv[1], sys.argv[2], sys.argv[3])
     else:
-        # Default test segment
-        scrape_segment("Le Brouges Bags", "https://lebrouges-bags.cartpe.in", "allcategory.html", "lebrouges_bags")
+        scrape_vendor("Le Brouges Bags", "https://lebrouges-bags.cartpe.in", "lebrouges_bags")
