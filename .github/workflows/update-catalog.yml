@@ -1,4 +1,4 @@
-name: Parallel Multi-Store Scraper
+name: High-Speed Parallel Scraper
 
 on:
   push:
@@ -6,31 +6,60 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+    inputs:
+      target_vendor:
+        description: 'Vendor to update (Leave "all" to scrape everything)'
+        required: false
+        default: 'all'
 
 permissions:
   contents: write
 
 jobs:
-  scrape-vendor:
+  scrape-matrix:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        store:
+        include:
+          # Le Brouges Sneakers Segments
           - name: "Le Brouges Sneakers"
             url: "https://le-brouges-resell.cartpe.in"
-            slug: "le_brouges_sneakers"
+            path: "men-rsquo-s-shoe-footwear.html"
+            slug: "lebrouges_sneakers_men"
+          - name: "Le Brouges Sneakers"
+            url: "https://le-brouges-resell.cartpe.in"
+            path: "flipflops-footwear.html"
+            slug: "lebrouges_sneakers_flipflops"
+
+          # Bagworld Segments
           - name: "Bagworld by Dolly"
             url: "https://bagworld1.cartpe.in"
-            slug: "bagworld1"
+            path: "allcategory.html"
+            slug: "bagworld_all"
+
+          # Bag4u Segments
           - name: "Bag4u by Dolly"
             url: "https://bag4u.cartpe.in"
-            slug: "bag4u"
+            path: "allcategory.html"
+            slug: "bag4u_all"
+
+          # Muzammil Surat Segments
           - name: "Muzammil Surat"
             url: "https://mtcollection.cartpe.in"
-            slug: "mtcollection"
+            path: "allcategory.html"
+            slug: "mtcollection_all"
+
+          # Le Brouges Bags Segments
           - name: "Le Brouges Bags"
             url: "https://lebrouges-bags.cartpe.in"
-            slug: "lebrouges_bags"
+            path: "allcategory.html"
+            slug: "lebrouges_bags_all"
+
+          # NM Official Segments
+          - name: "NM Official"
+            url: "https://nmofficial.cartpe.in"
+            path: "allcategory.html"
+            slug: "nm_official_all"
       fail-fast: false
 
     steps:
@@ -42,56 +71,60 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install lightweight dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install playwright beautifulsoup4 requests
-          playwright install chromium
+          pip install requests beautifulsoup4
 
-      - name: Scrape Single Store
-        run: python scraper.py "${{ matrix.store.name }}" "${{ matrix.store.url }}" "${{ matrix.store.slug }}"
+      - name: Scrape Segment
+        run: |
+          python scraper.py "${{ matrix.name }}" "${{ matrix.url }}" "${{ matrix.path }}" "${{ matrix.slug }}"
 
-      - name: Upload Store Artifact
+      - name: Upload Segment Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: catalog-${{ matrix.store.slug }}
-          path: ${{ matrix.store.slug }}.json
+          name: catalog-${{ matrix.slug }}
+          path: ${{ matrix.slug }}.json
 
-  merge-catalogs:
-    needs: scrape-vendor
+  merge-segments:
+    needs: scrape-matrix
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Download all store artifacts
+      - name: Download all segment artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Merge JSON files
+      - name: Merge & Deduplicate
         run: |
           python -c "
           import json, glob, os
           merged = []
+          seen_urls = set()
           for f in glob.glob('artifacts/**/*.json', recursive=True):
               try:
                   with open(f, 'r', encoding='utf-8') as infile:
                       data = json.load(infile)
-                      merged.extend(data)
+                      for item in data:
+                          if item.get('url') not in seen_urls:
+                              seen_urls.add(item.get('url'))
+                              merged.append(item)
               except Exception as e:
                   print(f'Error reading {f}: {e}')
           for i, item in enumerate(merged, start=1):
               item['id'] = i
           with open('catalog.json', 'w', encoding='utf-8') as outfile:
               json.dump(merged, outfile, indent=2, ensure_ascii=False)
-          print(f'Merged {len(merged)} total products into catalog.json')
+          print(f'Successfully merged {len(merged)} unique items into catalog.json')
           "
 
-      - name: Commit and Push catalog.json
+      - name: Commit and Push
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add catalog.json
-          git commit -m "Automated parallel catalog update" || exit 0
+          git commit -m "High-speed parallel catalog update" || exit 0
           git push
