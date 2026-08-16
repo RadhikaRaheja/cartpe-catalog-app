@@ -33,7 +33,6 @@
     .in-stock { color: var(--primary); } .out-of-stock { color: #ff4444; }
     .btn-action { background: var(--primary); color: #000; border: none; font-weight: bold; cursor: pointer; padding: 0.8rem; border-radius: 6px; margin-top: auto; }
     
-    /* Modal */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
     .modal { background: var(--modal-bg); width: 90%; max-width: 420px; padding: 1.5rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.9rem; border: 1px solid #333; }
     .quick-adds { display: flex; gap: 0.4rem; }
@@ -45,7 +44,6 @@
     .modal-actions button { flex: 1; font-weight: bold; cursor: pointer; padding: 0.8rem; border-radius: 6px;}
     .btn-cancel { background: #444; color: #fff; border: none; }
     .btn-confirm { background: var(--primary); color: #000; border: none; }
-    
     #statusMessage { text-align: center; padding: 3rem 1rem; color: #a0a0a0; font-size: 1.1rem; }
   </style>
 </head>
@@ -71,7 +69,7 @@
     </div>
   </header>
 
-  <div id="statusMessage">Fetching your catalog...<br><br><small>(If this stays here, check your GitHub Actions tab to see if the scraper is still running or failed.)</small></div>
+  <div id="statusMessage">Fetching your catalog...</div>
   <div class="grid" id="productGrid"></div>
 
   <!-- Share & Custom Price Modal -->
@@ -92,13 +90,13 @@
       <textarea id="customMessage"></textarea>
 
       <div class="media-buttons">
-        <button class="btn-media" id="copyImgBtn" onclick="copyMainImage()">📋 Copy Main Image</button>
+        <button class="btn-media" id="copyImgBtn" onclick="copyMainImageSafe()">📋 Copy Main Image (Fixed)</button>
         <button class="btn-media" id="dlVideoBtn" style="display:none;" onclick="downloadProductVideo()">🎥 Download HD Video</button>
       </div>
 
       <div class="modal-actions">
         <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-confirm" onclick="executeShare()">Share to WhatsApp</button>
+        <button class="btn-confirm" onclick="executeShareSafe()">Share to WhatsApp</button>
       </div>
     </div>
   </div>
@@ -143,7 +141,7 @@
       container.innerHTML = items.map(item => `
         <div class="card" style="opacity: ${item.in_stock ? '1' : '0.55'}">
           <div class="media-scroller">
-            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" />`).join('')}
+            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" crossOrigin="anonymous"/>`).join('')}
             ${item.video ? `<video src="${item.video}" controls playsinline preload="none"></video>` : ''}
           </div>
           <div class="card-body">
@@ -178,7 +176,6 @@
       render(filtered);
     }
 
-    // Dynamic Text Generation based on Category
     function generateDescription(item, sellingPrice) {
       if (item.category === 'footwear') {
         return `*${item.title}*\n\nQuality: Top Notch Assurance\nSizes Available: UK 6 to 10 (Confirm in DM)\n\nPrice: ₹${sellingPrice} (Free Shipping Included)`;
@@ -216,15 +213,43 @@
 
     function closeModal() { document.getElementById('shareModal').style.display = 'none'; }
 
-    async function copyMainImage() {
+    // FIXED: Convert image to pure PNG Canvas blob to bypass OS/Browser clipboard blocks
+    async function copyMainImageSafe() {
       if (!currentItem.images || !currentItem.images.length) return;
+      const btn = document.getElementById('copyImgBtn');
+      btn.innerText = "Copying...";
+      
       try {
-        const res = await fetch(currentItem.images[0]);
-        const blob = await res.blob();
-        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-        alert("Main image copied to clipboard!");
+        const imgUrl = currentItem.images[0];
+        const img = new Image();
+        img.crossOrigin = "Anonymous"; // Crucial for Canvas
+        img.src = imgUrl;
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        canvas.toBlob(async (blob) => {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            btn.innerText = "✅ Copied!";
+            setTimeout(() => btn.innerText = "📋 Copy Main Image (Fixed)", 2000);
+          } catch (clipErr) {
+            alert("Your browser restricts clipboard access. Please long-press or right-click the image to copy.");
+            btn.innerText = "📋 Copy Main Image (Fixed)";
+          }
+        }, 'image/png');
+
       } catch (err) {
-        alert("Clipboard copy unsupported here. Long-press the image to copy.");
+        alert("Could not process image due to cross-origin policies. Long-press to copy.");
+        btn.innerText = "📋 Copy Main Image (Fixed)";
       }
     }
 
@@ -239,62 +264,41 @@
       document.body.removeChild(a);
     }
 
-    async function executeShare() {
+    // FIXED: iOS Safari Crash Protection
+    async function executeShareSafe() {
       const shareText = document.getElementById('customMessage').value;
+      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
 
+      // Attempt native share with media, but catch all errors instantly to prevent crashes
       if (navigator.canShare) {
         try {
           let mediaFiles = [];
           if (currentItem.video) {
-            const vRes = await fetch(currentItem.video);
-            const vBlob = await vRes.blob();
-            mediaFiles.push(new File([vBlob], 'product_video.mp4', { type: 'video/mp4' }));
+             const vRes = await fetch(currentItem.video);
+             mediaFiles.push(new File([await vRes.blob()], 'video.mp4', { type: 'video/mp4' }));
           } else if (currentItem.images && currentItem.images.length > 0) {
-            const iRes = await fetch(currentItem.images[0]);
-            const iBlob = await iRes.blob();
-            mediaFiles.push(new File([iBlob], 'product_image.jpg', { type: iBlob.type }));
+             const iRes = await fetch(currentItem.images[0]);
+             mediaFiles.push(new File([await iRes.blob()], 'image.jpg', { type: 'image/jpeg' }));
           }
 
           if (mediaFiles.length && navigator.canShare({ files: mediaFiles })) {
-            await navigator.share({ files: mediaFiles, text: shareText });
-            closeModal();
-            return;
+             await navigator.share({ files: mediaFiles, text: shareText });
+             closeModal();
+             return;
           }
-        } catch (e) { console.log("Native share fallback."); }
+        } catch (e) {
+          console.log("Native share denied or crashed, falling back to basic URL open.");
+        }
       }
 
-      if (currentItem.video) {
-        downloadProductVideo();
-        alert("Video download started! Drag and drop it into WhatsApp Web.");
-      }
-      
-      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      // Safe Fallback for iOS/Mac/Windows
       window.open(waUrl, '_blank');
       closeModal();
     }
 
-    function openManualAddModal() {
-      const title = prompt("Enter Product Title:");
-      if (!title) return;
-      const price = prompt("Enter Base Price (₹):");
-      const img = prompt("Paste Image URL:");
-      const video = prompt("Paste Video URL (Optional):");
-
-      const item = {
-        id: Date.now(), vendor: 'Custom Item', category: 'accessory',
-        title: title, base_price: parseInt(price) || 0, in_stock: true,
-        images: [img || 'https://via.placeholder.com/300'],
-        video: video || null
-      };
-
-      catalog.unshift(item);
-      populateFilters();
-      filterProducts();
-    }
-
     function startVoiceSearch() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) { alert("Voice search is not supported in this browser."); return; }
+      if (!SpeechRecognition) return;
       const rec = new SpeechRecognition();
       rec.lang = 'en-IN';
       rec.onresult = (e) => {
