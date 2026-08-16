@@ -1,135 +1,163 @@
+import sys
 import json
 import time
 import re
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
-STORES = [
-    {"name": "Le Brouges Sneakers", "url": "https://le-brouges-resell.cartpe.in"},
-    {"name": "Bagworld by Dolly", "url": "https://bagworld1.cartpe.in"},
-    {"name": "Bag4u by Dolly", "url": "https://bag4u.cartpe.in"},
-    {"name": "Muzammil Surat", "url": "https://mtcollection.cartpe.in"},
-    {"name": "Le Brouges Bags", "url": "https://lebrouges-bags.cartpe.in"}
-]
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    )
+}
 
 def auto_scroll(page):
-    """Scrolls down the page to trigger infinite loading."""
-    for _ in range(5):  # Adjust range for deeper scrolling
-        page.keyboard.press("End")
-        time.sleep(2)
+    """Simulates scrolling to load dynamically rendered products."""
+    for _ in range(4):
+        page.keyboard.press("PageDown")
+        time.sleep(1.5)
 
-def scrape_all():
+def extract_video_url(page, soup):
+    """Detects .mp4 video links from buttons, modals, or page source."""
+    # 1. Check direct download / view video buttons
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(strip=True).upper()
+        if ("VIDEO" in text or ".mp4" in href.lower()) and not href.startswith("javascript"):
+            if "cartpe.in" in href or href.startswith("http"):
+                return href
+
+    # 2. Check <video> or <source> tags
+    video_tag = soup.find("video")
+    if video_tag:
+        if video_tag.get("src"):
+            return video_tag["src"]
+        source_tag = video_tag.find("source")
+        if source_tag and source_tag.get("src"):
+            return source_tag["src"]
+
+    # 3. Check for onclick scripts containing video URLs
+    for btn in soup.find_all(["button", "a", "div"], onclick=True):
+        onclick = btn["onclick"]
+        match = re.search(r"'(https?://[^']+\.mp4[^']*)'", onclick)
+        if match:
+            return match.group(1)
+
+    return None
+
+def scrape_vendor(store_name, base_url, slug):
     products = []
     seen_urls = set()
+    base_url = base_url.rstrip("/")
+
+    print(f"\n==========================================")
+    print(f"Starting Scraper for: {store_name} ({base_url})")
+    print(f"==========================================")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        )
+        context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
 
-        for store in STORES:
-            store_name = store["name"]
-            base_url = store["url"].rstrip("/")
-            print(f"\n--- Scanning {store_name} ---")
+        # Gather Categories
+        categories = []
+        try:
+            page.goto(f"{base_url}/allcategory.html", timeout=45000)
+            soup = BeautifulSoup(page.content(), "html.parser")
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if href.endswith(".html") and not any(x in href for x in ["login", "cart", "account", "order", "allcategory"]):
+                    full_url = href if href.startswith("http") else f"{base_url}/{href.lstrip('/')}"
+                    if full_url not in categories:
+                        categories.append(full_url)
+        except Exception as e:
+            print(f"Category scan fallback to base URL: {e}")
+            categories = [base_url]
 
-            # 1. Get Categories
-            categories = []
+        for cat_url in categories:
+            print(f"\nScanning Category: {cat_url}")
             try:
-                page.goto(f"{base_url}/allcategory.html", timeout=60000)
-                links = page.locator("a").all()
-                for link in links:
-                    href = link.get_attribute("href")
-                    if href and href.endswith(".html") and "login" not in href and "cart" not in href:
-                        full_url = href if href.startswith("http") else base_url + ("/" if not href.startswith("/") else "") + href
-                        if full_url not in categories:
-                            categories.append(full_url)
-            except Exception as e:
-                print(f"Error fetching categories: {e}")
-                categories = [base_url]
+                page.goto(cat_url, timeout=45000)
+                auto_scroll(page)
 
-            # 2. Scrape Category Pages
-            for cat_url in categories:
-                print(f"Checking category: {cat_url}")
-                try:
-                    page.goto(cat_url, timeout=60000)
-                    auto_scroll(page) # Scroll to load items
-                    
-                    html = page.content()
-                    soup = BeautifulSoup(html, "html.parser")
-                    prod_links = soup.find_all("a", href=re.compile(r"-npi\d+-"))
+                soup = BeautifulSoup(page.content(), "html.parser")
+                prod_links = soup.find_all("a", href=re.compile(r"-npi\d+-"))
 
-                    for a in prod_links:
-                        prod_url = a["href"]
-                        if prod_url.startswith("/"):
-                            prod_url = base_url + prod_url
+                for a in prod_links:
+                    prod_url = a["href"]
+                    if prod_url.startswith("/"):
+                        prod_url = base_url + prod_url
 
-                        if prod_url in seen_urls:
-                            continue
-                        seen_urls.add(prod_url)
+                    if prod_url in seen_urls:
+                        continue
+                    seen_urls.add(prod_url)
 
-                        # 3. Scrape Product Details
-                        try:
-                            page.goto(prod_url, timeout=60000)
-                            p_html = page.content()
-                            p_soup = BeautifulSoup(p_html, "html.parser")
+                    try:
+                        page.goto(prod_url, timeout=45000)
+                        p_soup = BeautifulSoup(page.content(), "html.parser")
 
-                            # Title & Price
-                            title = p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown"
-                            price = p_soup.find("h6").get_text(strip=True) if p_soup.find("h6") else "0"
-                            
-                            # Clean price (extract just numbers)
-                            price_num = re.sub(r'[^\d.]', '', price)
+                        # Title
+                        title_el = p_soup.find("h1")
+                        title = title_el.get_text(strip=True) if title_el else "Unknown Product"
 
-                            # Category from Breadcrumbs (usually inside a nav tag near the title)
-                            category = "General"
-                            nav_tag = p_soup.find("nav")
-                            if nav_tag:
-                                breadcrumbs = nav_tag.find_all("a")
-                                if len(breadcrumbs) > 1:
-                                    category = breadcrumbs[-1].get_text(strip=True)
+                        # Price
+                        price_el = p_soup.find("h6")
+                        price_raw = price_el.get_text(strip=True) if price_el else "0"
+                        price_num = re.sub(r"[^\d]", "", price_raw)
+                        base_price = int(price_num) if price_num else 0
 
-                            # Stock Status
-                            in_stock = "Out Of Stock" not in p_soup.get_text()
+                        # Breadcrumb Category
+                        category = "General"
+                        nav = p_soup.find("nav")
+                        if nav:
+                            crumbs = [c.get_text(strip=True) for c in nav.find_all("a")]
+                            if len(crumbs) > 1:
+                                category = crumbs[-1]
 
-                            # Images (Restrict to main product viewer, usually a slider or specific ul/div)
-                            images = []
-                            # Look specifically for the main gallery images, avoiding related products
-                            main_area = p_soup.find("div", {"role": "main"}) or p_soup
-                            for img in main_area.find_all("img", src=re.compile(r"gallery_(md|lg)")):
-                                src = img["src"]
-                                if src not in images:
-                                    images.append(src)
+                        # Stock Availability
+                        in_stock = "OUT OF STOCK" not in p_soup.get_text().upper()
 
-                            # Videos (Look for "DOWNLOAD VIDEO" or "VIEW VIDEO" buttons)
-                            video_url = None
-                            vid_btn = p_soup.find("a", string=re.compile(r"VIDEO", re.IGNORECASE))
-                            if vid_btn and vid_btn.get("href"):
-                                video_url = vid_btn["href"]
+                        # Isolated Product Gallery (Prevents picking up related products)
+                        images = []
+                        main_box = p_soup.find("div", {"role": "main"}) or p_soup
+                        for img in main_box.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                            src = img["src"]
+                            if src not in images:
+                                images.append(src)
 
-                            if images and title != "Unknown":
-                                products.append({
-                                    "id": len(products) + 1,
-                                    "vendor": store_name,
-                                    "category": category,
-                                    "title": title,
-                                    "base_price": int(price_num) if price_num else 0,
-                                    "in_stock": in_stock,
-                                    "images": images,
-                                    "video": video_url
-                                })
-                                print(f"Scraped: {title} | Video: {'Yes' if video_url else 'No'}")
-                        except Exception as e:
-                            print(f"Skipping product due to error: {e}")
-                except Exception as e:
-                     print(f"Skipping category due to error: {e}")
+                        # Video Detection
+                        video_url = extract_video_url(page, p_soup)
+
+                        if images and title != "Unknown Product":
+                            products.append({
+                                "vendor": store_name,
+                                "category": category,
+                                "title": title,
+                                "base_price": base_price,
+                                "in_stock": in_stock,
+                                "images": images,
+                                "video": video_url,
+                                "url": prod_url
+                            })
+                            print(f"✔ [{store_name}] {title[:35]}... | Video: {'YES' if video_url else 'NO'}")
+
+                    except Exception as err:
+                        print(f"Error scraping product {prod_url}: {err}")
+
+            except Exception as err:
+                print(f"Error scraping category {cat_url}: {err}")
 
         browser.close()
 
-    with open("catalog.json", "w", encoding="utf-8") as f:
+    output_filename = f"{slug}.json"
+    with open(output_filename, "w", encoding="utf-8") as f:
         json.dump(products, f, indent=2, ensure_ascii=False)
-    print(f"\nSaved {len(products)} total products.")
+    print(f"\nSaved {len(products)} products to {output_filename}")
 
 if __name__ == "__main__":
-    scrape_all()
+    if len(sys.argv) >= 4:
+        scrape_vendor(sys.argv[1], sys.argv[2], sys.argv[3])
+    else:
+        # Local fallback test
+        scrape_vendor("Le Brouges Sneakers", "https://le-brouges-resell.cartpe.in", "le_brouges_sneakers")
