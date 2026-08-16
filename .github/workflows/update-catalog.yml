@@ -1,97 +1,195 @@
-name: Parallel Multi-Store Scraper
+import sys
+import json
+import re
+import time
+import requests
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
-on:
-  push:
-    branches: [ main ]
-  schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    )
+}
 
-permissions:
-  contents: write
+def extract_video_url(soup):
+    """Detects .mp4 video links from the main product page."""
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(strip=True).upper()
+        if ("VIDEO" in text or ".mp4" in href.lower()) and not href.startswith("javascript"):
+            return href
+    video_tag = soup.find("video")
+    if video_tag and video_tag.get("src"):
+        return video_tag["src"]
+    return None
 
-jobs:
-  scrape-vendor:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        store:
-          - name: "Le Brouges Sneakers"
-            url: "https://le-brouges-resell.cartpe.in"
-            slug: "le_brouges_sneakers"
-          - name: "Bagworld by Dolly"
-            url: "https://bagworld1.cartpe.in"
-            slug: "bagworld1"
-          - name: "Bag4u by Dolly"
-            url: "https://bag4u.cartpe.in"
-            slug: "bag4u"
-          - name: "Muzammil Surat"
-            url: "https://mtcollection.cartpe.in"
-            slug: "mtcollection"
-          - name: "Le Brouges Bags"
-            url: "https://lebrouges-bags.cartpe.in"
-            slug: "lebrouges_bags"
-      fail-fast: false
+def get_urls_from_sitemap(base_url):
+    """Checks if the site has a sitemap to instantly grab URLs."""
+    print(f"Checking for sitemap at {base_url}/sitemap.xml...")
+    urls = []
+    try:
+        res = requests.get(f"{base_url}/sitemap.xml", headers=HEADERS, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.content, "xml")
+            for loc in soup.find_all("loc"):
+                url_text = loc.text.strip()
+                if "-npi" in url_text and "whatsapp.com" not in url_text:
+                    urls.append(url_text)
+    except Exception:
+        pass
+    return urls
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+def scrape_vendor(store_name, base_url, slug):
+    products = []
+    base_url = base_url.rstrip("/")
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    print(f"\n==========================================")
+    print(f"Starting Optimized Scraper for: {store_name}")
+    print(f"==========================================")
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install playwright beautifulsoup4 requests
-          playwright install chromium
+    # 1. Try Sitemap First
+    product_urls = get_urls_from_sitemap(base_url)
 
-      - name: Scrape Single Store
-        run: python scraper.py "${{ matrix.store.name }}" "${{ matrix.store.url }}" "${{ matrix.store.slug }}"
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+        context = browser.new_context(user_agent=HEADERS["User-Agent"])
+        page = context.new_page()
 
-      - name: Upload Store Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: catalog-${{ matrix.store.slug }}
-          path: ${{ matrix.store.slug }}.json
+        # SPEED OPTIMIZATION: Block heavy files so pages load in 1-2 seconds
+        page.route("**/*", lambda route: route.abort() 
+            if route.request.resource_type in ["stylesheet", "font", "media", "image"] 
+            else route.continue_()
+        )
 
-  merge-catalogs:
-    needs: scrape-vendor
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+        # 2. Fallback: If no sitemap, quickly scan categories and extract links
+        if not product_urls:
+            print("No sitemap found. Falling back to fast category scanning...")
+            categories = []
+            try:
+                page.goto(f"{base_url}/allcategory.html", timeout=15000, wait_until="domcontentloaded")
+                soup = BeautifulSoup(page.content(), "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if href.endswith(".html") and not any(x in href for x in ["login", "cart", "account", "order", "allcategory"]):
+                        full_url = href if href.startswith("http") else f"{base_url}/{href.lstrip('/')}"
+                        if full_url not in categories:
+                            categories.append(full_url)
+            except Exception:
+                pass
 
-      - name: Download all store artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+            if not categories:
+                categories = [
+                    f"{base_url}/flipflops-footwear.html",
+                    f"{base_url}/men-rsquo-s-shoe-footwear.html",
+                    f"{base_url}/ladies-shoes-footwear-women.html",
+                    f"{base_url}/premium-shoes-footwear.html",
+                    base_url
+                ]
 
-      - name: Merge JSON files
-        run: |
-          python -c "
-          import json, glob, os
-          merged = []
-          for f in glob.glob('artifacts/**/*.json', recursive=True):
-              try:
-                  with open(f, 'r', encoding='utf-8') as infile:
-                      data = json.load(infile)
-                      merged.extend(data)
-              except Exception as e:
-                  print(f'Error reading {f}: {e}')
-          for i, item in enumerate(merged, start=1):
-              item['id'] = i
-          with open('catalog.json', 'w', encoding='utf-8') as outfile:
-              json.dump(merged, outfile, indent=2, ensure_ascii=False)
-          print(f'Merged {len(merged)} total products into catalog.json')
-          "
+            seen_links = set()
+            for cat_url in categories:
+                print(f"Extracting links from: {cat_url}")
+                try:
+                    page.goto(cat_url, timeout=15000, wait_until="domcontentloaded")
+                    # Quickly scroll and click "View More" 6 times
+                    for _ in range(6):
+                        page.keyboard.press("End")
+                        time.sleep(0.5)
+                        try:
+                            view_more = page.get_by_text("View More", exact=False)
+                            if view_more.is_visible():
+                                view_more.click()
+                                time.sleep(0.5)
+                            else:
+                                break
+                        except:
+                            break
+                    
+                    soup = BeautifulSoup(page.content(), "html.parser")
+                    for a in soup.find_all("a", href=re.compile(r"-npi\d+-")):
+                        href = a["href"]
+                        if href.startswith("/"):
+                            href = base_url + href
+                        
+                        # CRITICAL FIX: Completely ignore WhatsApp URLs
+                        if href not in seen_links and "whatsapp.com" not in href:
+                            seen_links.add(href)
+                            product_urls.append(href)
+                except Exception:
+                    pass
 
-      - name: Commit and Push catalog.json
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add catalog.json
-          git commit -m "Automated parallel catalog update" || exit 0
-          git push
+        # Remove any duplicates just to be safe
+        product_urls = list(set(product_urls))
+        print(f"\nTotal product URLs found: {len(product_urls)}")
+
+        # 3. Scrape the individual products rapidly
+        for prod_url in product_urls:
+            # Double-check safety filter before visiting
+            if "whatsapp.com" in prod_url or "facebook.com" in prod_url:
+                continue
+
+            try:
+                page.goto(prod_url, timeout=15000, wait_until="domcontentloaded")
+                p_soup = BeautifulSoup(page.content(), "html.parser")
+
+                title_el = p_soup.find("h1")
+                title = title_el.get_text(strip=True) if title_el else "Unknown Product"
+
+                price_el = p_soup.find("h6")
+                price_num = re.sub(r"[^\d]", "", price_el.get_text(strip=True)) if price_el else ""
+                base_price = int(price_num) if price_num else 0
+
+                # Determine Category for formatting
+                category = "accessory"
+                url_lower = prod_url.lower()
+                if "shoe" in url_lower or "sneaker" in url_lower or "croc" in url_lower or "flipflop" in url_lower:
+                    category = "footwear"
+                elif "bag" in url_lower or "clutch" in url_lower or "wallet" in url_lower:
+                    category = "bag"
+
+                in_stock = "OUT OF STOCK" not in p_soup.get_text().upper()
+
+                # Precise image targeting
+                images = []
+                main_area = p_soup.find("div", {"role": "main"})
+                if main_area:
+                    for img in main_area.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                        if img["src"] not in images: images.append(img["src"])
+                
+                if not images:
+                    for img in p_soup.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                        if img["src"] not in images: images.append(img["src"])
+
+                video_url = extract_video_url(p_soup)
+
+                if images and title != "Unknown Product":
+                    products.append({
+                        "vendor": store_name,
+                        "category": category,
+                        "title": title,
+                        "base_price": base_price,
+                        "in_stock": in_stock,
+                        "images": images,
+                        "video": video_url,
+                        "url": prod_url
+                    })
+                    print(f"✔ Scraped: {title[:35]}...")
+
+            except Exception as err:
+                # If a single page times out, it gracefully moves to the next one
+                pass
+
+        browser.close()
+
+    output_filename = f"{slug}.json"
+    with open(output_filename, "w", encoding="utf-8") as f:
+        json.dump(products, f, indent=2, ensure_ascii=False)
+    print(f"\nSaved {len(products)} products to {output_filename}")
+
+if __name__ == "__main__":
+    if len(sys.argv) >= 4:
+        scrape_vendor(sys.argv[1], sys.argv[2], sys.argv[3])
+    else:
+        scrape_vendor("Le Brouges Bags", "https://lebrouges-bags.cartpe.in", "lebrouges_bags")
