@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Catalog Manager & WhatsApp Sharer</title>
+  <title>Multi-Store Catalog Manager</title>
   <style>
     :root {
       --primary: #25D366;
@@ -20,7 +20,8 @@
       padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #333;
       background: var(--card-bg); color: var(--text); font-size: 0.95rem;
     }
-    input { flex: 1; min-width: 200px; }
+    input { flex: 2; min-width: 180px; }
+    select { flex: 1; min-width: 140px; }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -32,9 +33,159 @@
     }
     .card img { width: 100%; height: 220px; object-fit: cover; background: #000; }
     .card-body { padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+    .vendor-badge { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; }
     .title { font-size: 1rem; font-weight: 600; }
     .price { color: var(--primary); font-size: 1.1rem; font-weight: bold; }
     .status-badge {
+      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+      font-size: 0.75rem; font-weight: bold; width: fit-content;
+    }
+    .in-stock { background: rgba(37, 211, 102, 0.2); color: var(--primary); }
+    .out-of-stock { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+    .btn-share {
+      background: var(--primary); color: #000; border: none; font-weight: bold;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 0.5rem; margin-top: auto; padding: 0.7rem; border-radius: 6px;
+    }
+    .btn-share:hover { opacity: 0.9; }
+    #emptyMsg { text-align: center; color: var(--text-muted); margin-top: 3rem; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Product Catalog</h1>
+    <div class="controls">
+      <input type="text" id="search" placeholder="Search products, brands..." oninput="filterProducts()"/>
+      <select id="vendorFilter" onchange="filterProducts()">
+        <option value="all">All Vendors</option>
+      </select>
+      <select id="stockFilter" onchange="filterProducts()">
+        <option value="all">All Stock Status</option>
+        <option value="in_stock">In Stock Only</option>
+        <option value="out_of_stock">Out of Stock Only</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="grid" id="productGrid"></div>
+  <div id="emptyMsg" style="display: none;">No products found or catalog is currently updating.</div>
+
+  <script>
+    let catalog = [];
+
+    async function loadCatalog() {
+      try {
+        const res = await fetch('catalog.json?t=' + new Date().getTime());
+        if (!res.ok) throw new Error("catalog.json not found");
+        catalog = await res.json();
+        localStorage.setItem('cached_catalog', JSON.stringify(catalog));
+      } catch (err) {
+        console.warn("Loading from cache...");
+        catalog = JSON.parse(localStorage.getItem('cached_catalog') || '[]');
+      }
+      populateVendorFilter();
+      render(catalog);
+    }
+
+    function populateVendorFilter() {
+      const vendors = [...new Set(catalog.map(item => item.vendor).filter(Boolean))];
+      const vendorSelect = document.getElementById('vendorFilter');
+      vendorSelect.innerHTML = '<option value="all">All Vendors</option>' + 
+        vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+    }
+
+    function render(items) {
+      const container = document.getElementById('productGrid');
+      const emptyMsg = document.getElementById('emptyMsg');
+      if (!items || items.length === 0) {
+        container.innerHTML = '';
+        emptyMsg.style.display = 'block';
+        return;
+      }
+      emptyMsg.style.display = 'none';
+      container.innerHTML = items.map(item => `
+        <div class="card">
+          <img src="${(item.images && item.images[0]) || 'https://via.placeholder.com/300'}" alt="${item.title}" loading="lazy"/>
+          <div class="card-body">
+            <span class="vendor-badge">${item.vendor || 'Cartpe Store'}</span>
+            <span class="status-badge ${item.in_stock ? 'in-stock' : 'out-of-stock'}">
+              ${item.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
+            </span>
+            <div class="title">${item.title}</div>
+            <div class="price">${item.price}</div>
+            <button class="btn-share" onclick="shareToWhatsApp(${item.id})">
+              Share to WhatsApp
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterProducts() {
+      const q = document.getElementById('search').value.toLowerCase();
+      const stock = document.getElementById('stockFilter').value;
+      const vendor = document.getElementById('vendorFilter').value;
+
+      const filtered = catalog.filter(item => {
+        const matchesQuery = item.title.toLowerCase().includes(q);
+        const matchesStock = stock === 'all' || 
+          (stock === 'in_stock' && item.in_stock) || 
+          (stock === 'out_of_stock' && !item.in_stock);
+        const matchesVendor = vendor === 'all' || item.vendor === vendor;
+        return matchesQuery && matchesStock && matchesVendor;
+      });
+      render(filtered);
+    }
+
+    async function shareToWhatsApp(id) {
+      const item = catalog.find(p => p.id === id);
+      if (!item) return;
+
+      const shareText = `*${item.title}*\nPrice: ${item.price}\nStatus: ${item.in_stock ? 'In Stock' : 'Out of Stock'}\nVendor: ${item.vendor || 'Store'}\nLink: ${item.url}`;
+
+      // Mobile / Tablet: Web Share API
+      if (navigator.canShare && item.images && item.images.length > 0) {
+        try {
+          const response = await fetch(item.images[0]);
+          const blob = await response.blob();
+          const file = new File([blob], 'product.jpg', { type: blob.type });
+
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: item.title,
+              text: shareText
+            });
+            return;
+          }
+        } catch (e) {
+          console.log("Fallback triggered.");
+        }
+      }
+
+      // Laptop / Desktop: Copy image to clipboard + open WhatsApp Web
+      if (item.images && item.images.length > 0 && navigator.clipboard && window.ClipboardItem) {
+        try {
+          const response = await fetch(item.images[0]);
+          const blob = await response.blob();
+          await navigator.clipboard.write([
+            new ClipboardItem({ [blob.type]: blob })
+          ]);
+          alert("Image copied to clipboard! Paste it into the WhatsApp chat.");
+        } catch (err) {
+          console.log("Could not auto-copy image.");
+        }
+      }
+
+      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      window.open(waUrl, '_blank');
+    }
+
+    window.onload = loadCatalog;
+  </script>
+</body>
+</html>    .status-badge {
       display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
       font-size: 0.75rem; font-weight: bold; width: fit-content;
     }
