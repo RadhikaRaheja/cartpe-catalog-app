@@ -7,61 +7,69 @@
   <style>
     :root {
       --primary: #25D366; --dark: #121212; --card-bg: #1e1e1e;
-      --text: #ffffff; --text-muted: #a0a0a0; --modal-bg: #2a2a2a;
+      --text: #ffffff; --text-muted: #a0a0a0; --modal-bg: #222222;
+      --video-tag: #1da1f2;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--dark); color: var(--text); padding: 1rem; }
-    
-    /* Header & Filters */
     header { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.5rem; }
     .top-bar { display: flex; justify-content: space-between; align-items: center; }
     .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    input, select, button { padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid #444; background: var(--card-bg); color: var(--text); }
-    .search-box { display: flex; flex: 2; min-width: 250px; gap: 0.2rem; }
+    input, select, button { padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid #333; background: var(--card-bg); color: var(--text); font-size: 0.95rem; }
+    .search-box { display: flex; flex: 2; min-width: 240px; gap: 0.2rem; }
     .search-box input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-    .btn-mic { background: var(--primary); color: #000; border: none; border-top-right-radius: 8px; border-bottom-right-radius: 8px; cursor: pointer; font-weight: bold;}
+    .btn-mic { background: var(--primary); color: #000; border: none; border-top-right-radius: 8px; border-bottom-right-radius: 8px; cursor: pointer; font-weight: bold; }
     
-    /* Grid & Cards */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; }
-    .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #333; }
-    .image-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
-    .image-scroller::-webkit-scrollbar { height: 5px; }
-    .image-scroller::-webkit-scrollbar-thumb { background: #555; }
-    .image-scroller img, .image-scroller video { width: 100%; height: 260px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; background: #000;}
+    .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #2a2a2a; }
+    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; background: #000; height: 260px; }
+    .media-scroller::-webkit-scrollbar { height: 5px; }
+    .media-scroller::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+    .media-scroller img, .media-scroller video { width: 100%; height: 260px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; }
+    
     .card-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
-    .meta-tags { display: flex; gap: 0.5rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; flex-wrap: wrap;}
-    .title { font-size: 1.05rem; font-weight: 600; line-height: 1.3; }
-    .price { color: var(--text-muted); font-size: 0.9rem; text-decoration: line-through; }
+    .meta-tags { display: flex; gap: 0.5rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; flex-wrap: wrap; }
+    .badge-video { color: var(--video-tag); }
+    .title { font-size: 1rem; font-weight: 600; line-height: 1.3; }
+    .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 0.2rem; }
+    .base-price { color: var(--text-muted); font-size: 0.85rem; text-decoration: line-through; }
+    .stock-tag { font-size: 0.8rem; font-weight: bold; }
+    .in-stock { color: var(--primary); } .out-of-stock { color: #ff4444; }
+    
     .btn-action { background: var(--primary); color: #000; border: none; font-weight: bold; cursor: pointer; padding: 0.8rem; border-radius: 6px; margin-top: auto; }
     
     /* Modal */
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
-    .modal { background: var(--modal-bg); width: 90%; max-width: 400px; padding: 1.5rem; border-radius: 12px; display: flex; flex-direction: column; gap: 1rem; }
-    .modal h3 { margin-bottom: 0.5rem; }
-    .quick-adds { display: flex; gap: 0.5rem; }
-    .quick-adds button { flex: 1; background: #444; border: none; cursor: pointer; }
-    textarea { width: 100%; height: 80px; padding: 0.5rem; border-radius: 8px; background: var(--card-bg); color: #fff; border: 1px solid #444; resize: none; }
-    .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
-    .modal-actions button { flex: 1; font-weight: bold; cursor: pointer; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
+    .modal { background: var(--modal-bg); width: 90%; max-width: 420px; padding: 1.5rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.9rem; border: 1px solid #333; }
+    .quick-adds { display: flex; gap: 0.4rem; }
+    .quick-adds button { flex: 1; background: #333; border: none; cursor: pointer; padding: 0.5rem; }
+    textarea { width: 100%; height: 75px; padding: 0.6rem; border-radius: 8px; background: var(--card-bg); color: #fff; border: 1px solid #444; resize: none; }
+    .media-buttons { display: flex; gap: 0.5rem; flex-direction: column; }
+    .btn-media { background: #2c3e50; color: #fff; border: none; cursor: pointer; padding: 0.6rem; }
+    .modal-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .modal-actions button { flex: 1; font-weight: bold; cursor: pointer; padding: 0.8rem; }
     .btn-cancel { background: #444; color: #fff; border: none; }
     .btn-confirm { background: var(--primary); color: #000; border: none; }
-    .btn-secondary { background: #1da1f2; color: #fff; border: none; margin-top: 0.5rem;}
   </style>
 </head>
 <body>
 
   <header>
     <div class="top-bar">
-      <h1>Reseller Hub</h1>
-      <button onclick="openManualAddModal()">+ Add Manual Item</button>
+      <h1>Reseller Pro Hub</h1>
+      <button onclick="openManualAddModal()">+ Add Custom Item</button>
     </div>
     <div class="controls">
       <div class="search-box">
-        <input type="text" id="search" placeholder="Search models, colors..." oninput="filterProducts()"/>
+        <input type="text" id="search" placeholder="Search shoes, bags, brands..." oninput="filterProducts()"/>
         <button class="btn-mic" onclick="startVoiceSearch()">🎤</button>
       </div>
       <select id="vendorFilter" onchange="filterProducts()"><option value="all">All Vendors</option></select>
       <select id="categoryFilter" onchange="filterProducts()"><option value="all">All Categories</option></select>
+      <select id="mediaFilter" onchange="filterProducts()">
+        <option value="all">All Media Types</option>
+        <option value="has_video">Has Video Only</option>
+      </select>
       <select id="stockFilter" onchange="filterProducts()">
         <option value="in_stock">In Stock Only</option>
         <option value="all">Include Out of Stock</option>
@@ -70,26 +78,29 @@
   </header>
 
   <div class="grid" id="productGrid"></div>
-  <div id="emptyMsg" style="display:none; text-align:center; margin-top:2rem;">No items found.</div>
+  <div id="emptyMsg" style="display:none; text-align:center; margin-top:3rem;">No products found matching criteria.</div>
 
-  <!-- Share / Pricing Modal -->
+  <!-- Share & Custom Price Modal -->
   <div class="modal-overlay" id="shareModal">
     <div class="modal">
-      <h3>Edit Pricing & Share</h3>
-      <div id="modalProductTitle" style="font-weight:bold; color:var(--primary);"></div>
-      <label>Base Price: ₹<span id="modalBasePrice">0</span></label>
-      
+      <h3>Edit Price & Share</h3>
+      <div id="modalTitle" style="font-weight:bold; color:var(--primary); font-size:0.95rem;"></div>
+      <div>Base Price: ₹<span id="modalBasePrice">0</span></div>
+
       <div class="quick-adds">
         <button onclick="addMarkup(300)">+₹300</button>
         <button onclick="addMarkup(500)">+₹500</button>
         <button onclick="addMarkup(800)">+₹800</button>
       </div>
-      
-      <input type="number" id="finalPrice" placeholder="Final Selling Price" />
-      <textarea id="customMessage" placeholder="Add custom details (e.g., Free Shipping!)"></textarea>
-      
-      <button class="btn-secondary" id="copyMediaBtn">📥 Copy/Download Media</button>
-      
+
+      <input type="number" id="finalPrice" placeholder="Selling Price (₹)" />
+      <textarea id="customMessage" placeholder="Custom note (e.g. Premium batch, COD available)"></textarea>
+
+      <div class="media-buttons">
+        <button class="btn-media" id="copyImgBtn" onclick="copyMainImage()">📋 Copy Main Image</button>
+        <button class="btn-media" id="dlVideoBtn" style="display:none;" onclick="downloadProductVideo()">🎥 Download HD Video</button>
+      </div>
+
       <div class="modal-actions">
         <button class="btn-cancel" onclick="closeModal()">Cancel</button>
         <button class="btn-confirm" onclick="executeShare()">Share to WhatsApp</button>
@@ -99,47 +110,54 @@
 
   <script>
     let catalog = [];
-    let currentActiveProduct = null;
+    let currentItem = null;
 
     async function loadCatalog() {
       try {
         const res = await fetch('catalog.json?t=' + new Date().getTime());
         catalog = await res.json();
+        localStorage.setItem('cached_catalog', JSON.stringify(catalog));
       } catch (err) {
-        console.warn("Loading offline cache");
+        catalog = JSON.parse(localStorage.getItem('cached_catalog') || '[]');
       }
       populateFilters();
       filterProducts();
     }
 
     function populateFilters() {
-      const vendors = [...new Set(catalog.map(item => item.vendor).filter(Boolean))];
-      const categories = [...new Set(catalog.map(item => item.category).filter(Boolean))];
+      const vendors = [...new Set(catalog.map(i => i.vendor).filter(Boolean))];
+      const categories = [...new Set(catalog.map(i => i.category).filter(Boolean))];
       
       const vSelect = document.getElementById('vendorFilter');
-      vendors.forEach(v => vSelect.innerHTML += `<option value="${v}">${v}</option>`);
+      vSelect.innerHTML = '<option value="all">All Vendors</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
       
       const cSelect = document.getElementById('categoryFilter');
-      categories.forEach(c => cSelect.innerHTML += `<option value="${c}">${c}</option>`);
+      cSelect.innerHTML = '<option value="all">All Categories</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
     }
 
     function render(items) {
       const container = document.getElementById('productGrid');
       if (!items.length) { container.innerHTML = ''; document.getElementById('emptyMsg').style.display = 'block'; return; }
       document.getElementById('emptyMsg').style.display = 'none';
-      
+
       container.innerHTML = items.map(item => `
-        <div class="card" style="opacity: ${item.in_stock ? '1' : '0.5'}">
-          <div class="image-scroller">
+        <div class="card" style="opacity: ${item.in_stock ? '1' : '0.55'}">
+          <div class="media-scroller">
             ${item.images.map(img => `<img src="${img}" loading="lazy" />`).join('')}
+            ${item.video ? `<video src="${item.video}" controls playsinline preload="none"></video>` : ''}
           </div>
           <div class="card-body">
             <div class="meta-tags">
-              <span>${item.vendor || 'Custom'}</span> • <span>${item.category || 'General'}</span>
-              ${item.video ? '<span style="color:#1da1f2;">🎥 VIDEO AVAIL</span>' : ''}
+              <span>${item.vendor}</span> • <span>${item.category}</span>
+              ${item.video ? '<span class="badge-video">🎥 VIDEO</span>' : ''}
             </div>
             <div class="title">${item.title}</div>
-            <div class="price">Base: ₹${item.base_price}</div>
+            <div class="price-row">
+              <span class="base-price">Base: ₹${item.base_price}</span>
+              <span class="stock-tag ${item.in_stock ? 'in-stock' : 'out-of-stock'}">
+                ${item.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
+              </span>
+            </div>
             <button class="btn-action" onclick="openShareModal(${item.id})">
               Edit Price & Share
             </button>
@@ -152,107 +170,126 @@
       const q = document.getElementById('search').value.toLowerCase();
       const vendor = document.getElementById('vendorFilter').value;
       const cat = document.getElementById('categoryFilter').value;
+      const media = document.getElementById('mediaFilter').value;
       const stock = document.getElementById('stockFilter').value;
 
       const filtered = catalog.filter(item => {
-        return (item.title.toLowerCase().includes(q) || item.vendor.toLowerCase().includes(q)) &&
-               (vendor === 'all' || item.vendor === vendor) &&
-               (cat === 'all' || item.category === cat) &&
-               (stock === 'all' || item.in_stock);
+        const matchesQuery = item.title.toLowerCase().includes(q) || item.vendor.toLowerCase().includes(q);
+        const matchesVendor = vendor === 'all' || item.vendor === vendor;
+        const matchesCat = cat === 'all' || item.category === cat;
+        const matchesMedia = media === 'all' || (media === 'has_video' && item.video);
+        const matchesStock = stock === 'all' || (stock === 'in_stock' && item.in_stock);
+        return matchesQuery && matchesVendor && matchesCat && matchesMedia && matchesStock;
       });
       render(filtered);
     }
 
-    // Voice Search
     function startVoiceSearch() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) { alert("Voice search unsupported in this browser."); return; }
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'en-IN';
-      recognition.onresult = (event) => {
-        document.getElementById('search').value = event.results[0][0].transcript;
+      if (!SpeechRecognition) { alert("Voice search is not supported in this browser."); return; }
+      const rec = new SpeechRecognition();
+      rec.lang = 'en-IN';
+      rec.onresult = (e) => {
+        document.getElementById('search').value = e.results[0][0].transcript;
         filterProducts();
       };
-      recognition.start();
+      rec.start();
     }
 
-    // Modal Logic
     function openShareModal(id) {
-      currentActiveProduct = catalog.find(p => p.id === id);
-      document.getElementById('modalProductTitle').innerText = currentActiveProduct.title;
-      document.getElementById('modalBasePrice').innerText = currentActiveProduct.base_price;
-      document.getElementById('finalPrice').value = currentActiveProduct.base_price + 500; // Default +500 markup
-      document.getElementById('customMessage').value = "DM to place your order!";
-      document.getElementById('shareModal').style.display = 'flex';
+      currentItem = catalog.find(p => p.id === id);
+      document.getElementById('modalTitle').innerText = currentItem.title;
+      document.getElementById('modalBasePrice').innerText = currentItem.base_price;
+      document.getElementById('finalPrice').value = currentItem.base_price + 500;
+      document.getElementById('customMessage').value = "Premium quality. DM to order!";
       
-      // Update media button logic
-      const mediaBtn = document.getElementById('copyMediaBtn');
-      mediaBtn.onclick = () => handleMediaCopy(currentActiveProduct);
-    }
-    function closeModal() { document.getElementById('shareModal').style.display = 'none'; }
-    function addMarkup(amount) {
-      document.getElementById('finalPrice').value = parseInt(document.getElementById('modalBasePrice').innerText) + amount;
+      const dlBtn = document.getElementById('dlVideoBtn');
+      dlBtn.style.display = currentItem.video ? 'block' : 'none';
+      document.getElementById('shareModal').style.display = 'flex';
     }
 
-    // Advanced Copy Media (Images to Clipboard, Videos to Download)
-    async function handleMediaCopy(item) {
-      if (item.video) {
-        // Trigger video download
-        const a = document.createElement('a');
-        a.href = item.video;
-        a.download = `product_video.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        alert("Video download started! You can share it directly from your gallery.");
-      } else if (item.images.length > 0 && navigator.clipboard && window.ClipboardItem) {
-        // Copy image to clipboard for laptops/phones
-        try {
-          const response = await fetch(item.images[0]);
-          const blob = await response.blob();
-          await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-          alert("Main image copied to clipboard!");
-        } catch (err) { alert("Clipboard copy failed. Try long-pressing the image."); }
+    function closeModal() { document.getElementById('shareModal').style.display = 'none'; }
+    function addMarkup(amt) {
+      document.getElementById('finalPrice').value = parseInt(document.getElementById('modalBasePrice').innerText) + amt;
+    }
+
+    async function copyMainImage() {
+      if (!currentItem.images.length) return;
+      try {
+        const res = await fetch(currentItem.images[0]);
+        const blob = await res.blob();
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        alert("Main image copied to clipboard!");
+      } catch (err) {
+        alert("Clipboard copy unsupported. Long-press the image to copy.");
       }
+    }
+
+    function downloadProductVideo() {
+      if (!currentItem.video) return;
+      const a = document.createElement('a');
+      a.href = currentItem.video;
+      a.download = `${currentItem.title.replace(/\s+/g, '_')}_video.mp4`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     async function executeShare() {
       const price = document.getElementById('finalPrice').value;
-      const msg = document.getElementById('customMessage').value;
-      const shareText = `*${currentActiveProduct.title}*\nPrice: ₹${price}\n\n${msg}`;
+      const note = document.getElementById('customMessage').value;
+      const shareText = `*${currentItem.title}*\nPrice: ₹${price}\n\n${note}`;
 
-      // Try native mobile sharing first
-      if (navigator.canShare && currentActiveProduct.images.length > 0) {
+      // Native Mobile Share (Supports attaching video or images directly)
+      if (navigator.canShare) {
         try {
-          const response = await fetch(currentActiveProduct.images[0]);
-          const blob = await response.blob();
-          const file = new File([blob], 'product.jpg', { type: blob.type });
-          await navigator.share({ files: [file], text: shareText });
-          closeModal();
-          return;
-        } catch (e) { console.log("Native share failed."); }
+          let mediaFiles = [];
+          if (currentItem.video) {
+            const vRes = await fetch(currentItem.video);
+            const vBlob = await vRes.blob();
+            mediaFiles.push(new File([vBlob], 'product_video.mp4', { type: 'video/mp4' }));
+          } else if (currentItem.images.length > 0) {
+            const iRes = await fetch(currentItem.images[0]);
+            const iBlob = await iRes.blob();
+            mediaFiles.push(new File([iBlob], 'product_image.jpg', { type: iBlob.type }));
+          }
+
+          if (mediaFiles.length && navigator.canShare({ files: mediaFiles })) {
+            await navigator.share({ files: mediaFiles, text: shareText });
+            closeModal();
+            return;
+          }
+        } catch (e) {
+          console.log("Native media share fallback.");
+        }
       }
 
-      // Fallback for Web WhatsApp
+      // Desktop WhatsApp Web Fallback
+      if (currentItem.video) {
+        downloadProductVideo();
+        alert("Video download started! Drag and drop it into WhatsApp Web.");
+      }
       const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
       window.open(waUrl, '_blank');
       closeModal();
     }
 
-    // Manual Add Logic (Temporary Local Storage)
     function openManualAddModal() {
       const title = prompt("Enter Product Title:");
       if (!title) return;
-      const price = prompt("Enter Base Price:");
+      const price = prompt("Enter Base Price (₹):");
       const img = prompt("Paste Image URL:");
-      
-      const newItem = {
-        id: Date.now(), vendor: 'Manual Entry', category: 'Custom',
+      const video = prompt("Paste Video URL (Optional):");
+
+      const item = {
+        id: Date.now(), vendor: 'Custom Item', category: 'Custom',
         title: title, base_price: parseInt(price) || 0, in_stock: true,
-        images: [img || 'https://via.placeholder.com/300'], video: null
+        images: [img || 'https://via.placeholder.com/300'],
+        video: video || null
       };
-      
-      catalog.unshift(newItem); // Add to beginning of array
+
+      catalog.unshift(item);
       populateFilters();
       filterProducts();
     }
