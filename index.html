@@ -90,13 +90,13 @@
       <textarea id="customMessage"></textarea>
 
       <div class="media-buttons">
-        <button class="btn-media" id="copyImgBtn" onclick="copyMainImageSafe()">📋 Copy Main Image (Fixed)</button>
+        <button class="btn-media" id="copyImgBtn" onclick="copyMainImageSafe()">📋 Copy Main Image (Desktop)</button>
         <button class="btn-media" id="dlVideoBtn" style="display:none;" onclick="downloadProductVideo()">🎥 Download HD Video</button>
       </div>
 
       <div class="modal-actions">
         <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-confirm" onclick="executeShareSafe()">Share to WhatsApp</button>
+        <button class="btn-confirm" id="btnShareWa" onclick="executeShareSafe()">Share to WhatsApp</button>
       </div>
     </div>
   </div>
@@ -138,10 +138,11 @@
           return;
       }
       
+      // FIX 1: Removed crossOrigin="anonymous" to prevent iOS Safari from blocking image rendering
       container.innerHTML = items.map(item => `
         <div class="card" style="opacity: ${item.in_stock ? '1' : '0.55'}">
           <div class="media-scroller">
-            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" crossOrigin="anonymous"/>`).join('')}
+            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" />`).join('')}
             ${item.video ? `<video src="${item.video}" controls playsinline preload="none"></video>` : ''}
           </div>
           <div class="card-body">
@@ -213,7 +214,6 @@
 
     function closeModal() { document.getElementById('shareModal').style.display = 'none'; }
 
-    // FIXED: Convert image to pure PNG Canvas blob to bypass OS/Browser clipboard blocks
     async function copyMainImageSafe() {
       if (!currentItem.images || !currentItem.images.length) return;
       const btn = document.getElementById('copyImgBtn');
@@ -222,7 +222,7 @@
       try {
         const imgUrl = currentItem.images[0];
         const img = new Image();
-        img.crossOrigin = "Anonymous"; // Crucial for Canvas
+        img.crossOrigin = "Anonymous"; 
         img.src = imgUrl;
 
         await new Promise((resolve, reject) => {
@@ -240,16 +240,16 @@
           try {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
             btn.innerText = "✅ Copied!";
-            setTimeout(() => btn.innerText = "📋 Copy Main Image (Fixed)", 2000);
+            setTimeout(() => btn.innerText = "📋 Copy Main Image (Desktop)", 2000);
           } catch (clipErr) {
-            alert("Your browser restricts clipboard access. Please long-press or right-click the image to copy.");
-            btn.innerText = "📋 Copy Main Image (Fixed)";
+            alert("Clipboard restricted. Please long-press the image to copy.");
+            btn.innerText = "📋 Copy Main Image (Desktop)";
           }
         }, 'image/png');
 
       } catch (err) {
-        alert("Could not process image due to cross-origin policies. Long-press to copy.");
-        btn.innerText = "📋 Copy Main Image (Fixed)";
+        alert("Cross-origin restricted. Long-press to copy.");
+        btn.innerText = "📋 Copy Main Image (Desktop)";
       }
     }
 
@@ -264,35 +264,54 @@
       document.body.removeChild(a);
     }
 
-    // FIXED: iOS Safari Crash Protection
+    // FIX 2 & 3: Multi-image loop & Video MIME signature fixes
     async function executeShareSafe() {
       const shareText = document.getElementById('customMessage').value;
       const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      
+      const btn = document.getElementById('btnShareWa');
+      btn.innerText = "Preparing Media...";
 
-      // Attempt native share with media, but catch all errors instantly to prevent crashes
-      if (navigator.canShare) {
+      if (navigator.canShare && navigator.share) {
         try {
           let mediaFiles = [];
+          
           if (currentItem.video) {
              const vRes = await fetch(currentItem.video);
-             mediaFiles.push(new File([await vRes.blob()], 'video.mp4', { type: 'video/mp4' }));
+             const vBlob = await vRes.blob();
+             // Ensures accurate MIME type so iOS doesn't throw unsupported error
+             const vType = vBlob.type || 'video/mp4'; 
+             mediaFiles.push(new File([vBlob], 'product_video.mp4', { type: vType }));
           } else if (currentItem.images && currentItem.images.length > 0) {
-             const iRes = await fetch(currentItem.images[0]);
-             mediaFiles.push(new File([await iRes.blob()], 'image.jpg', { type: 'image/jpeg' }));
+             // Loop up to 4 images max to avoid Safari memory crashes
+             const maxImages = Math.min(currentItem.images.length, 4);
+             for(let i = 0; i < maxImages; i++) {
+                 const iRes = await fetch(currentItem.images[i]);
+                 const iBlob = await iRes.blob();
+                 const iType = iBlob.type || 'image/jpeg';
+                 mediaFiles.push(new File([iBlob], `product_image_${i}.jpg`, { type: iType }));
+             }
           }
 
-          if (mediaFiles.length && navigator.canShare({ files: mediaFiles })) {
+          if (mediaFiles.length > 0 && navigator.canShare({ files: mediaFiles })) {
              await navigator.share({ files: mediaFiles, text: shareText });
+             btn.innerText = "Share to WhatsApp";
              closeModal();
              return;
           }
         } catch (e) {
-          console.log("Native share denied or crashed, falling back to basic URL open.");
+          console.log("Native share rejected the media format, executing graceful fallback.");
         }
       }
 
-      // Safe Fallback for iOS/Mac/Windows
+      // GRACEFUL FALLBACK: If video share fails, trigger download and open WhatsApp text instantly
+      if (currentItem.video) {
+         downloadProductVideo();
+         alert("Video format was unsupported for direct sharing. Downloading video to your device so you can attach it in WhatsApp.");
+      }
+      
       window.open(waUrl, '_blank');
+      btn.innerText = "Share to WhatsApp";
       closeModal();
     }
 
