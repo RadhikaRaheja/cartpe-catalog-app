@@ -1,0 +1,87 @@
+import json
+import re
+import time
+import requests
+from bs4 import BeautifulSoup
+
+BASE_URL = "https://le-brouges-resell.cartpe.in"
+CATEGORIES = [
+    f"{BASE_URL}/men-rsquo-s-shoe-footwear.html",
+    f"{BASE_URL}/flipflops-footwear.html",
+    f"{BASE_URL}/premium-shoes-footwear.html",
+    f"{BASE_URL}/ladies-shoes-footwear-women.html",
+]
+
+headers = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    )
+}
+
+
+def get_products():
+  products = []
+  seen_urls = set()
+
+  for cat_url in CATEGORIES:
+    print(f"Fetching category: {cat_url}")
+    res = requests.get(cat_url, headers=headers)
+    if res.status_code != 200:
+      continue
+
+    soup = BeautifulSoup(res.text, "html.parser")
+    links = soup.find_all("a", href=re.compile(r"-npi\d+-"))
+
+    for a in links:
+      prod_url = a["href"]
+      if prod_url.startswith("/"):
+        prod_url = BASE_URL + prod_url
+      if prod_url in seen_urls:
+        continue
+      seen_urls.add(prod_url)
+
+      try:
+        p_res = requests.get(prod_url, headers=headers)
+        p_soup = BeautifulSoup(p_res.text, "html.parser")
+
+        # 1. Title
+        title_tag = p_soup.find("h1")
+        title = title_tag.get_text(strip=True) if title_tag else "Unknown"
+
+        # 2. Stock check
+        page_text = p_soup.get_text()
+        in_stock = "Out Of Stock" not in page_text
+
+        # 3. Price
+        price_tag = p_soup.find("h6")
+        price = price_tag.get_text(strip=True) if price_tag else "N/A"
+
+        # 4. Images
+        images = []
+        for img in p_soup.find_all("img", src=re.compile(r"gallery_(md|sm)")):
+          src = img["src"]
+          if src not in images:
+            images.append(src)
+
+        products.append({
+            "id": len(products) + 1,
+            "title": title,
+            "price": price,
+            "url": prod_url,
+            "in_stock": in_stock,
+            "images": images,
+            "description": f"{title}\nPrice: ₹{price}\nIn Stock: {'Yes' if in_stock else 'No'}",
+        })
+        print(f"Scraped: {title} | In Stock: {in_stock}")
+        time.sleep(0.5)  # Avoid rate limiting
+      except Exception as e:
+        print(f"Error scraping {prod_url}: {e}")
+
+  with open("catalog.json", "w", encoding="utf-8") as f:
+    json.dump(products, f, indent=2, ensure_ascii=False)
+  print(f"Done! Saved {len(products)} products to catalog.json")
+
+
+if __name__ == "__main__":
+  get_products()
