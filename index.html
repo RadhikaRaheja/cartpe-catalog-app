@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Multi-Store Catalog Manager</title>
+  <title>Reseller Catalog</title>
   <style>
     :root {
       --primary: #25D366;
@@ -12,7 +12,7 @@
       --text: #ffffff;
       --text-muted: #a0a0a0;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
     body { background: var(--dark); color: var(--text); padding: 1rem; }
     header { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.5rem; }
     .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -21,55 +21,49 @@
       background: var(--card-bg); color: var(--text); font-size: 0.95rem;
     }
     input { flex: 2; min-width: 180px; }
-    select { flex: 1; min-width: 140px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1.2rem;
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; }
+    .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #2a2a2a; }
+    
+    /* Image Gallery CSS */
+    .image-scroller {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      background: #000;
     }
-    .card {
-      background: var(--card-bg); border-radius: 12px; overflow: hidden;
-      display: flex; flex-direction: column; border: 1px solid #2a2a2a;
+    .image-scroller::-webkit-scrollbar { height: 6px; }
+    .image-scroller::-webkit-scrollbar-thumb { background: #555; border-radius: 10px; }
+    .image-scroller img {
+      width: 100%; height: 250px; object-fit: cover;
+      scroll-snap-align: start; flex-shrink: 0;
     }
-    .card img { width: 100%; height: 220px; object-fit: cover; background: #000; }
+
     .card-body { padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
-    .vendor-badge { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; }
     .title { font-size: 1rem; font-weight: 600; }
     .price { color: var(--primary); font-size: 1.1rem; font-weight: bold; }
-    .status-badge {
-      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
-      font-size: 0.75rem; font-weight: bold; width: fit-content;
-    }
-    .in-stock { background: rgba(37, 211, 102, 0.2); color: var(--primary); }
-    .out-of-stock { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
     .btn-share {
       background: var(--primary); color: #000; border: none; font-weight: bold;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       gap: 0.5rem; margin-top: auto; padding: 0.7rem; border-radius: 6px;
     }
-    .btn-share:hover { opacity: 0.9; }
-    #emptyMsg { text-align: center; color: var(--text-muted); margin-top: 3rem; font-size: 1.1rem; }
+    #emptyMsg { text-align: center; color: var(--text-muted); margin-top: 3rem; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Product Catalog</h1>
+    <h1>Reseller Catalog</h1>
     <div class="controls">
-      <input type="text" id="search" placeholder="Search products, brands..." oninput="filterProducts()"/>
-      <select id="vendorFilter" onchange="filterProducts()">
-        <option value="all">All Vendors</option>
-      </select>
+      <input type="text" id="search" placeholder="Search models..." oninput="filterProducts()"/>
       <select id="stockFilter" onchange="filterProducts()">
-        <option value="all">All Stock Status</option>
-        <option value="in_stock">In Stock Only</option>
-        <option value="out_of_stock">Out of Stock Only</option>
+        <option value="all">All Items</option>
+        <option value="in_stock">In Stock</option>
       </select>
     </div>
   </header>
 
   <div class="grid" id="productGrid"></div>
-  <div id="emptyMsg" style="display: none;">No products found or catalog is currently updating.</div>
+  <div id="emptyMsg" style="display: none;">Loading or no products found...</div>
 
   <script>
     let catalog = [];
@@ -77,22 +71,11 @@
     async function loadCatalog() {
       try {
         const res = await fetch('catalog.json?t=' + new Date().getTime());
-        if (!res.ok) throw new Error("catalog.json not found");
         catalog = await res.json();
-        localStorage.setItem('cached_catalog', JSON.stringify(catalog));
       } catch (err) {
-        console.warn("Loading from cache...");
-        catalog = JSON.parse(localStorage.getItem('cached_catalog') || '[]');
+        document.getElementById('emptyMsg').innerText = "Run the scraper in GitHub Actions first to generate catalog.json!";
       }
-      populateVendorFilter();
       render(catalog);
-    }
-
-    function populateVendorFilter() {
-      const vendors = [...new Set(catalog.map(item => item.vendor).filter(Boolean))];
-      const vendorSelect = document.getElementById('vendorFilter');
-      vendorSelect.innerHTML = '<option value="all">All Vendors</option>' + 
-        vendors.map(v => `<option value="${v}">${v}</option>`).join('');
     }
 
     function render(items) {
@@ -106,14 +89,13 @@
       emptyMsg.style.display = 'none';
       container.innerHTML = items.map(item => `
         <div class="card">
-          <img src="${(item.images && item.images[0]) || 'https://via.placeholder.com/300'}" alt="${item.title}" loading="lazy"/>
+          <div class="image-scroller">
+            ${item.images.map(img => `<img src="${img}" loading="lazy" />`).join('')}
+          </div>
           <div class="card-body">
-            <span class="vendor-badge">${item.vendor || 'Cartpe Store'}</span>
-            <span class="status-badge ${item.in_stock ? 'in-stock' : 'out-of-stock'}">
-              ${item.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
-            </span>
             <div class="title">${item.title}</div>
             <div class="price">${item.price}</div>
+            <div style="font-size: 0.8rem; color: #a0a0a0;">${item.in_stock ? '🟢 Available' : '🔴 Out of Stock'}</div>
             <button class="btn-share" onclick="shareToWhatsApp(${item.id})">
               Share to WhatsApp
             </button>
@@ -125,15 +107,10 @@
     function filterProducts() {
       const q = document.getElementById('search').value.toLowerCase();
       const stock = document.getElementById('stockFilter').value;
-      const vendor = document.getElementById('vendorFilter').value;
-
       const filtered = catalog.filter(item => {
         const matchesQuery = item.title.toLowerCase().includes(q);
-        const matchesStock = stock === 'all' || 
-          (stock === 'in_stock' && item.in_stock) || 
-          (stock === 'out_of_stock' && !item.in_stock);
-        const matchesVendor = vendor === 'all' || item.vendor === vendor;
-        return matchesQuery && matchesStock && matchesVendor;
+        const matchesStock = stock === 'all' || (stock === 'in_stock' && item.in_stock);
+        return matchesQuery && matchesStock;
       });
       render(filtered);
     }
@@ -142,40 +119,41 @@
       const item = catalog.find(p => p.id === id);
       if (!item) return;
 
-      const shareText = `*${item.title}*\nPrice: ${item.price}\nStatus: ${item.in_stock ? 'In Stock' : 'Out of Stock'}\nVendor: ${item.vendor || 'Store'}\nLink: ${item.url}`;
+      // NO ORIGINAL URL INCLUDED. JUST YOUR DATA.
+      const shareText = `*${item.title}*\nPrice: ${item.price}\n\nDM to place your order!`;
 
-      // Mobile / Tablet: Web Share API
-      if (navigator.canShare && item.images && item.images.length > 0) {
+      // Attempt to share multiple images on mobile
+      if (navigator.canShare && item.images.length > 0) {
         try {
-          const response = await fetch(item.images[0]);
-          const blob = await response.blob();
-          const file = new File([blob], 'product.jpg', { type: blob.type });
+          const filesArray = [];
+          for (let i = 0; i < item.images.length; i++) {
+             const response = await fetch(item.images[i]);
+             const blob = await response.blob();
+             filesArray.push(new File([blob], `shoe_${i}.jpg`, { type: blob.type }));
+          }
 
-          if (navigator.canShare({ files: [file] })) {
+          if (navigator.canShare({ files: filesArray })) {
             await navigator.share({
-              files: [file],
-              title: item.title,
+              files: filesArray,
               text: shareText
             });
             return;
           }
         } catch (e) {
-          console.log("Fallback triggered.");
+          console.log("Multi-image share failed, falling back to text.", e);
         }
       }
 
-      // Laptop / Desktop: Copy image to clipboard + open WhatsApp Web
-      if (item.images && item.images.length > 0 && navigator.clipboard && window.ClipboardItem) {
+      // Fallback for Desktop/Laptops
+      if (item.images.length > 0 && navigator.clipboard && window.ClipboardItem) {
         try {
           const response = await fetch(item.images[0]);
           const blob = await response.blob();
           await navigator.clipboard.write([
             new ClipboardItem({ [blob.type]: blob })
           ]);
-          alert("Image copied to clipboard! Paste it into the WhatsApp chat.");
-        } catch (err) {
-          console.log("Could not auto-copy image.");
-        }
+          alert("Main image copied to clipboard! Paste it into the WhatsApp chat.");
+        } catch (err) {}
       }
 
       const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
