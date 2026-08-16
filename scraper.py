@@ -34,7 +34,8 @@ def scrape_vendor(store_name, base_url, slug):
     print(f"==========================================")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        # Launching with arguments to prevent being blocked by the server
+        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
         context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
 
@@ -49,84 +50,106 @@ def scrape_vendor(store_name, base_url, slug):
                     full_url = href if href.startswith("http") else f"{base_url}/{href.lstrip('/')}"
                     if full_url not in categories:
                         categories.append(full_url)
-        except Exception:
-            categories = [base_url]
+        except Exception as e:
+            print(f"Automatic category scan failed: {e}")
 
-        # 2. Iterate Through Categories and Pagination
+        # Fallback Safety Net: If the category page fails to load, force the known ones
+        if not categories:
+            print("Using fallback category list...")
+            categories = [
+                f"{base_url}/flipflops-footwear.html",
+                f"{base_url}/men-rsquo-s-shoe-footwear.html",
+                f"{base_url}/ladies-shoes-footwear-women.html",
+                f"{base_url}/premium-shoes-footwear.html",
+                base_url
+            ]
+
+        # 2. Iterate Through Categories & Click "View More"
         for cat_url in categories:
             print(f"\nScanning Category: {cat_url}")
-            for page_num in range(1, 10): # Checks up to 9 pages per category
-                paged_url = f"{cat_url}?page={page_num}" if "?" not in cat_url else f"{cat_url}&page={page_num}"
-                try:
-                    page.goto(paged_url, timeout=30000)
-                    soup = BeautifulSoup(page.content(), "html.parser")
-                    prod_links = soup.find_all("a", href=re.compile(r"-npi\d+-"))
-                    
-                    if not prod_links:
-                        break # No more products on this page, move to next category
+            try:
+                page.goto(cat_url, timeout=45000)
+                
+                # Scroll and physically click "View More" up to 12 times to load older articles
+                for _ in range(12): 
+                    page.keyboard.press("End")
+                    time.sleep(1.5)
+                    try:
+                        view_more = page.get_by_text("View More", exact=False)
+                        if view_more.is_visible():
+                            view_more.click()
+                            time.sleep(2)
+                        else:
+                            break # Button is gone, everything is loaded
+                    except:
+                        break
 
-                    for a in prod_links:
-                        prod_url = a["href"]
-                        if prod_url.startswith("/"):
-                            prod_url = base_url + prod_url
+                soup = BeautifulSoup(page.content(), "html.parser")
+                prod_links = soup.find_all("a", href=re.compile(r"-npi\d+-"))
 
-                        if prod_url in seen_urls:
-                            continue
-                        seen_urls.add(prod_url)
+                for a in prod_links:
+                    prod_url = a["href"]
+                    if prod_url.startswith("/"):
+                        prod_url = base_url + prod_url
 
-                        # 3. Scrape Individual Product Page
-                        try:
-                            page.goto(prod_url, timeout=45000)
-                            p_soup = BeautifulSoup(page.content(), "html.parser")
+                    if prod_url in seen_urls:
+                        continue
+                    seen_urls.add(prod_url)
 
-                            title_el = p_soup.find("h1")
-                            title = title_el.get_text(strip=True) if title_el else "Unknown Product"
+                    # 3. Scrape Individual Product Page
+                    try:
+                        page.goto(prod_url, timeout=45000)
+                        p_soup = BeautifulSoup(page.content(), "html.parser")
 
-                            price_el = p_soup.find("h6")
-                            price_raw = price_el.get_text(strip=True) if price_el else "0"
-                            price_num = re.sub(r"[^\d]", "", price_raw)
-                            base_price = int(price_num) if price_num else 0
+                        title_el = p_soup.find("h1")
+                        title = title_el.get_text(strip=True) if title_el else "Unknown Product"
 
-                            # Determine Category for Formatting
-                            category = "accessory"
-                            cat_text = cat_url.lower()
-                            if "shoe" in cat_text or "sneaker" in cat_text or "croc" in cat_text or "flipflop" in cat_text:
-                                category = "footwear"
-                            elif "bag" in cat_text or "clutch" in cat_text:
-                                category = "bag"
+                        price_el = p_soup.find("h6")
+                        price_raw = price_el.get_text(strip=True) if price_el else "0"
+                        price_num = re.sub(r"[^\d]", "", price_raw)
+                        base_price = int(price_num) if price_num else 0
 
-                            in_stock = "OUT OF STOCK" not in p_soup.get_text().upper()
+                        # Determine Category for your custom WhatsApp text formatting
+                        category = "accessory"
+                        cat_text = cat_url.lower()
+                        if "shoe" in cat_text or "sneaker" in cat_text or "croc" in cat_text or "flipflop" in cat_text:
+                            category = "footwear"
+                        elif "bag" in cat_text or "clutch" in cat_text:
+                            category = "bag"
 
-                            # STRICT IMAGE SELECTION: Only target the main carousel container
-                            images = []
-                            # Cartpe usually wraps the main product images in a section directly under the title container
-                            # By targeting the ul/li elements that hold the main images, we avoid related products
-                            main_gallery = p_soup.find("ul") or p_soup.find("div", {"role": "main"}) 
-                            if main_gallery:
-                                for img in main_gallery.find_all("img", src=re.compile(r"gallery_(md|lg)")):
-                                    src = img["src"]
-                                    if src not in images:
-                                        images.append(src)
+                        in_stock = "OUT OF STOCK" not in p_soup.get_text().upper()
 
-                            video_url = extract_video_url(p_soup)
+                        # Image Extraction - Priority 1: The main isolated product gallery
+                        images = []
+                        main_area = p_soup.find("div", {"role": "main"})
+                        if main_area:
+                            for img in main_area.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                                if img["src"] not in images: images.append(img["src"])
+                        
+                        # Image Extraction - Priority 2: Fallback if standard layout is missing
+                        if not images:
+                            for img in p_soup.find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                                if img["src"] not in images: images.append(img["src"])
 
-                            if images and title != "Unknown Product":
-                                products.append({
-                                    "vendor": store_name,
-                                    "category": category,
-                                    "title": title,
-                                    "base_price": base_price,
-                                    "in_stock": in_stock,
-                                    "images": images,
-                                    "video": video_url,
-                                    "url": prod_url
-                                })
-                                print(f"✔ Scraped: {title[:30]}... | Category: {category}")
+                        video_url = extract_video_url(p_soup)
 
-                        except Exception as err:
-                            pass # Skip item on error
-                except Exception as err:
-                    break # Stop pagination loop on error
+                        if images and title != "Unknown Product":
+                            products.append({
+                                "vendor": store_name,
+                                "category": category,
+                                "title": title,
+                                "base_price": base_price,
+                                "in_stock": in_stock,
+                                "images": images,
+                                "video": video_url,
+                                "url": prod_url
+                            })
+                            print(f"✔ Scraped: {title[:30]}... | Category: {category}")
+
+                    except Exception as err:
+                        print(f"Skipping product due to error: {err}")
+            except Exception as err:
+                print(f"Skipping category due to error: {err}")
 
         browser.close()
 
@@ -138,3 +161,6 @@ def scrape_vendor(store_name, base_url, slug):
 if __name__ == "__main__":
     if len(sys.argv) >= 4:
         scrape_vendor(sys.argv[1], sys.argv[2], sys.argv[3])
+    else:
+        # Fallback if run manually without arguments
+        scrape_vendor("Le Brouges Resell", "https://le-brouges-resell.cartpe.in", "le_brouges_resell")
