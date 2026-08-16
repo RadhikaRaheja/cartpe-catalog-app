@@ -1,6 +1,7 @@
 import sys
 import json
 import re
+import time
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
@@ -13,6 +14,7 @@ HEADERS = {
 }
 
 def extract_video_url(soup):
+    """Detects .mp4 video links from the main product page."""
     for a in soup.find_all("a", href=True):
         href = a["href"]
         text = a.get_text(strip=True).upper()
@@ -24,7 +26,7 @@ def extract_video_url(soup):
     return None
 
 def get_urls_from_sitemap(base_url):
-    """Instantly grabs all product URLs from the site's XML sitemap to skip scrolling."""
+    """Checks if the site has a sitemap to instantly grab URLs."""
     print(f"Checking for sitemap at {base_url}/sitemap.xml...")
     urls = []
     try:
@@ -35,8 +37,8 @@ def get_urls_from_sitemap(base_url):
                 url_text = loc.text.strip()
                 if "-npi" in url_text and "whatsapp.com" not in url_text:
                     urls.append(url_text)
-    except Exception as e:
-        print(f"Sitemap check failed: {e}")
+    except Exception:
+        pass
     return urls
 
 def scrape_vendor(store_name, base_url, slug):
@@ -47,35 +49,88 @@ def scrape_vendor(store_name, base_url, slug):
     print(f"Starting Optimized Scraper for: {store_name}")
     print(f"==========================================")
 
-    # STEP 1: Get URLs the fast way
+    # 1. Try Sitemap First
     product_urls = get_urls_from_sitemap(base_url)
-    
-    if product_urls:
-        print(f"SUCCESS: Found {len(product_urls)} products via sitemap! Skipping manual page scrolling.")
-    else:
-        print("No sitemap found. Falling back to category scanning (with WhatsApp filter)...")
-        # Fallback category scraping logic (omitted for brevity, but relies on finding standard links)
-        # We will manually seed a few fallback URLs if needed, but sitemap almost always works for Cartpe.
 
-    # STEP 2: Scrape the individual products quickly
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
         context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
 
-        # Block heavy resources to speed up page loads
+        # SPEED OPTIMIZATION: Block heavy files so pages load in 1-2 seconds
         page.route("**/*", lambda route: route.abort() 
-            if route.request.resource_type in ["stylesheet", "font", "media"] 
+            if route.request.resource_type in ["stylesheet", "font", "media", "image"] 
             else route.continue_()
         )
 
+        # 2. Fallback: If no sitemap, quickly scan categories and extract links
+        if not product_urls:
+            print("No sitemap found. Falling back to fast category scanning...")
+            categories = []
+            try:
+                page.goto(f"{base_url}/allcategory.html", timeout=15000, wait_until="domcontentloaded")
+                soup = BeautifulSoup(page.content(), "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if href.endswith(".html") and not any(x in href for x in ["login", "cart", "account", "order", "allcategory"]):
+                        full_url = href if href.startswith("http") else f"{base_url}/{href.lstrip('/')}"
+                        if full_url not in categories:
+                            categories.append(full_url)
+            except Exception:
+                pass
+
+            if not categories:
+                categories = [
+                    f"{base_url}/flipflops-footwear.html",
+                    f"{base_url}/men-rsquo-s-shoe-footwear.html",
+                    f"{base_url}/ladies-shoes-footwear-women.html",
+                    f"{base_url}/premium-shoes-footwear.html",
+                    base_url
+                ]
+
+            seen_links = set()
+            for cat_url in categories:
+                print(f"Extracting links from: {cat_url}")
+                try:
+                    page.goto(cat_url, timeout=15000, wait_until="domcontentloaded")
+                    # Quickly scroll and click "View More" 6 times
+                    for _ in range(6):
+                        page.keyboard.press("End")
+                        time.sleep(0.5)
+                        try:
+                            view_more = page.get_by_text("View More", exact=False)
+                            if view_more.is_visible():
+                                view_more.click()
+                                time.sleep(0.5)
+                            else:
+                                break
+                        except:
+                            break
+                    
+                    soup = BeautifulSoup(page.content(), "html.parser")
+                    for a in soup.find_all("a", href=re.compile(r"-npi\d+-")):
+                        href = a["href"]
+                        if href.startswith("/"):
+                            href = base_url + href
+                        
+                        # CRITICAL FIX: Completely ignore WhatsApp URLs
+                        if href not in seen_links and "whatsapp.com" not in href:
+                            seen_links.add(href)
+                            product_urls.append(href)
+                except Exception:
+                    pass
+
+        # Remove any duplicates just to be safe
+        product_urls = list(set(product_urls))
+        print(f"\nTotal product URLs found: {len(product_urls)}")
+
+        # 3. Scrape the individual products rapidly
         for prod_url in product_urls:
-            # CRITICAL FIX: Ensure we never try to scrape WhatsApp or Facebook
+            # Double-check safety filter before visiting
             if "whatsapp.com" in prod_url or "facebook.com" in prod_url:
                 continue
 
             try:
-                # 15 second timeout. If it takes longer, skip it and keep moving.
                 page.goto(prod_url, timeout=15000, wait_until="domcontentloaded")
                 p_soup = BeautifulSoup(page.content(), "html.parser")
 
@@ -83,10 +138,10 @@ def scrape_vendor(store_name, base_url, slug):
                 title = title_el.get_text(strip=True) if title_el else "Unknown Product"
 
                 price_el = p_soup.find("h6")
-                price_raw = price_el.get_text(strip=True) if price_el else "0"
-                price_num = re.sub(r"[^\d]", "", price_raw)
+                price_num = re.sub(r"[^\d]", "", price_el.get_text(strip=True)) if price_el else ""
                 base_price = int(price_num) if price_num else 0
 
+                # Determine Category for formatting
                 category = "accessory"
                 url_lower = prod_url.lower()
                 if "shoe" in url_lower or "sneaker" in url_lower or "croc" in url_lower or "flipflop" in url_lower:
@@ -96,6 +151,7 @@ def scrape_vendor(store_name, base_url, slug):
 
                 in_stock = "OUT OF STOCK" not in p_soup.get_text().upper()
 
+                # Precise image targeting
                 images = []
                 main_area = p_soup.find("div", {"role": "main"})
                 if main_area:
@@ -119,10 +175,11 @@ def scrape_vendor(store_name, base_url, slug):
                         "video": video_url,
                         "url": prod_url
                     })
-                    print(f"✔ Scraped: {title[:30]}...")
+                    print(f"✔ Scraped: {title[:35]}...")
 
             except Exception as err:
-                print(f"Skipping {prod_url} due to timeout/error.")
+                # If a single page times out, it gracefully moves to the next one
+                pass
 
         browser.close()
 
