@@ -69,8 +69,8 @@ def scrape_segment(store_name, base_url, category_path, slug):
             print(f"Scanning category: {cat_link}")
             try:
                 page.goto(cat_link, timeout=15000, wait_until="domcontentloaded")
-                # Scroll 10 times per category to gather older inventory safely
-                for _ in range(10):
+                # Scroll 100 times per category to gather older inventory safely
+                for _ in range(100):
                     page.keyboard.press("End")
                     time.sleep(0.8)
                     try:
