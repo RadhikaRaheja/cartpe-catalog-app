@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Reseller Pro Hub</title>
+  <title>Reseller Pro Hub - Cloud Edition</title>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root { --primary: #25D366; --dark: #121212; --card-bg: #1e1e1e; --text: #ffffff; --text-muted: #a0a0a0; --modal-bg: #222222; --video-tag: #1da1f2; }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
@@ -45,34 +47,42 @@
     .btn-cancel { background: #444; color: #fff; border: none; }
     .btn-confirm { background: var(--primary); color: #000; border: none; }
     #statusMessage { text-align: center; padding: 3rem 1rem; color: #a0a0a0; font-size: 1.1rem; }
+    #loadMoreBtn { display: none; margin: 2rem auto; width: 100%; max-width: 300px; background: #333; color: white; padding: 1rem; border-radius: 8px; cursor: pointer; border: 1px solid #444; font-weight: bold; text-align: center; }
   </style>
 </head>
 <body>
 
   <header>
     <div class="top-bar">
-      <h1>Reseller Pro Hub</h1>
-      <button onclick="openManualAddModal()">+ Add Custom Item</button>
+      <h1>Reseller Pro Hub (Cloud)</h1>
     </div>
     <div class="controls">
       <div class="search-box">
-        <input type="text" id="search" placeholder="Search shoes, bags, brands..." oninput="filterProducts()"/>
-        <button class="btn-mic" onclick="startVoiceSearch()">🎤</button>
+        <input type="text" id="search" placeholder="Search title..." onkeypress="if(event.key === 'Enter') applyFilters()"/>
+        <button class="btn-mic" onclick="applyFilters()">🔍</button>
       </div>
-      <select id="vendorFilter" onchange="filterProducts()"><option value="all">All Vendors</option></select>
-      <select id="categoryFilter" onchange="filterProducts()">
+      <select id="vendorFilter" onchange="applyFilters()">
+        <option value="all">All Vendors</option>
+        <option value="Le Brouges Sneakers">Le Brouges Sneakers</option>
+        <option value="Bagworld by Dolly">Bagworld by Dolly</option>
+        <option value="Bag4u by Dolly">Bag4u by Dolly</option>
+        <option value="Muzammil Surat">Muzammil Surat</option>
+        <option value="Le Brouges Bags">Le Brouges Bags</option>
+        <option value="NM Official">NM Official</option>
+      </select>
+      <select id="categoryFilter" onchange="applyFilters()">
         <option value="all">All Categories</option>
         <option value="footwear">Footwear</option>
         <option value="bag">Bags & Clutches</option>
-        <option value="accessory">Accessories / Misc</option>
       </select>
     </div>
   </header>
 
-  <div id="statusMessage">Fetching your catalog...</div>
+  <div id="statusMessage">Connecting to Cloud Database...</div>
   <div class="grid" id="productGrid"></div>
+  <button id="loadMoreBtn" onclick="fetchProducts()">Load More Products ↓</button>
 
-  <!-- Share & Custom Price Modal -->
+  <!-- Share Modal -->
   <div class="modal-overlay" id="shareModal">
     <div class="modal">
       <h3>Edit & Share</h3>
@@ -86,62 +96,95 @@
       </div>
 
       <input type="number" id="finalPrice" placeholder="Final Selling Price (₹)" oninput="updateMessagePreview()"/>
-      
       <textarea id="customMessage"></textarea>
 
       <div class="media-buttons">
-        <button class="btn-media" id="copyImgBtn" onclick="copyMainImageSafe()">📋 Copy Main Image (Fixed)</button>
+        <button class="btn-media" id="copyImgBtn" onclick="copyMainImageSafe()">📋 Copy Main Image (Desktop)</button>
         <button class="btn-media" id="dlVideoBtn" style="display:none;" onclick="downloadProductVideo()">🎥 Download HD Video</button>
       </div>
 
       <div class="modal-actions">
         <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-confirm" onclick="executeShareSafe()">Share to WhatsApp</button>
+        <button class="btn-confirm" id="btnShareWa" onclick="executeShareSafe()">Share to WhatsApp</button>
       </div>
     </div>
   </div>
 
   <script>
-    let catalog = [];
-    let currentItem = null;
+    // ==========================================
+    // PASTE YOUR SUPABASE KEYS HERE
+    // ==========================================
+    const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co"; 
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxkemp4d2FrcmRqc3pua3BlcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODc2MjUsImV4cCI6MjEwMjU2MzYyNX0.CkIKcGWlBdt_ds7cEJ6LNNkcBbpaj1fnQcaa-qHhrTk";
+    
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    async function loadCatalog() {
-      try {
-        const res = await fetch('catalog.json?t=' + new Date().getTime());
-        if (!res.ok) throw new Error("File not found");
-        catalog = await res.json();
-        localStorage.setItem('cached_catalog', JSON.stringify(catalog));
-      } catch (err) {
-        catalog = JSON.parse(localStorage.getItem('cached_catalog') || '[]');
+    let globalData = [];
+    let currentItem = null;
+    let currentPage = 0;
+    const pageSize = 40; // Safely loads 40 items at a time
+
+    async function fetchProducts(reset = false) {
+      if(reset) {
+        currentPage = 0;
+        globalData = [];
+        document.getElementById('productGrid').innerHTML = '';
+        document.getElementById('loadMoreBtn').style.display = 'none';
+        document.getElementById('statusMessage').style.display = 'block';
+        document.getElementById('statusMessage').innerText = 'Fetching catalog...';
+      }
+
+      const q = document.getElementById('search').value;
+      const vendor = document.getElementById('vendorFilter').value;
+      const cat = document.getElementById('categoryFilter').value;
+
+      let query = supabaseClient.from('products').select('*');
+
+      if (q) query = query.ilike('title', `%${q}%`);
+      if (vendor !== 'all') query = query.eq('vendor', vendor);
+      if (cat !== 'all') query = query.eq('category', cat);
+
+      const start = currentPage * pageSize;
+      const end = start + pageSize - 1;
+
+      // Pull latest items first
+      query = query.order('created_at', { ascending: false }).range(start, end);
+
+      const { data, error } = await query;
+      document.getElementById('statusMessage').style.display = 'none';
+
+      if (error) {
+        alert("Database connection error. Check your Supabase URL and Key.");
+        return;
+      }
+
+      globalData = globalData.concat(data);
+      render(data, reset);
+
+      if (data.length === pageSize) {
+        document.getElementById('loadMoreBtn').style.display = 'block';
+      } else {
+        document.getElementById('loadMoreBtn').style.display = 'none';
       }
       
-      const statusMsg = document.getElementById('statusMessage');
-      if (catalog.length === 0) {
-        statusMsg.innerHTML = "<strong>No products found!</strong><br><br>Wait 3-5 minutes for the GitHub Action to finish running, then refresh this page.";
-      } else {
-        statusMsg.style.display = 'none';
-        populateFilters();
-        filterProducts();
-      }
+      currentPage++;
     }
 
-    function populateFilters() {
-      const vendors = [...new Set(catalog.map(i => i.vendor).filter(Boolean))];
-      const vSelect = document.getElementById('vendorFilter');
-      vSelect.innerHTML = '<option value="all">All Vendors</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+    function applyFilters() {
+      fetchProducts(true);
     }
 
-    function render(items) {
+    function render(items, reset) {
       const container = document.getElementById('productGrid');
-      if(items.length === 0) {
-          container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color:#a0a0a0;">No items match your search.</div>';
+      if(items.length === 0 && reset) {
+          container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color:#a0a0a0;">No items found.</div>';
           return;
       }
       
-      container.innerHTML = items.map(item => `
+      const newHTML = items.map(item => `
         <div class="card" style="opacity: ${item.in_stock ? '1' : '0.55'}">
           <div class="media-scroller">
-            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" crossOrigin="anonymous"/>`).join('')}
+            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" />`).join('')}
             ${item.video ? `<video src="${item.video}" controls playsinline preload="none"></video>` : ''}
           </div>
           <div class="card-body">
@@ -156,24 +199,13 @@
                 ${item.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
               </span>
             </div>
-            <button class="btn-action" onclick="openShareModal(${item.id})">Edit & Share</button>
+            <!-- UUID requires string wrapper -->
+            <button class="btn-action" onclick="openShareModal('${item.id}')">Edit & Share</button>
           </div>
         </div>
       `).join('');
-    }
-
-    function filterProducts() {
-      const q = document.getElementById('search').value.toLowerCase();
-      const vendor = document.getElementById('vendorFilter').value;
-      const cat = document.getElementById('categoryFilter').value;
-      const filtered = catalog.filter(item => {
-        const titleMatch = (item.title || "").toLowerCase().includes(q);
-        const vendorMatch = (item.vendor || "").toLowerCase().includes(q);
-        return (titleMatch || vendorMatch) &&
-               (vendor === 'all' || item.vendor === vendor) &&
-               (cat === 'all' || item.category === cat);
-      });
-      render(filtered);
+      
+      container.innerHTML += newHTML;
     }
 
     function generateDescription(item, sellingPrice) {
@@ -187,7 +219,7 @@
     }
 
     function openShareModal(id) {
-      currentItem = catalog.find(p => p.id === id);
+      currentItem = globalData.find(p => p.id === id);
       document.getElementById('modalTitle').innerText = currentItem.title;
       document.getElementById('modalBasePrice').innerText = currentItem.base_price;
       
@@ -213,7 +245,6 @@
 
     function closeModal() { document.getElementById('shareModal').style.display = 'none'; }
 
-    // FIXED: Convert image to pure PNG Canvas blob to bypass OS/Browser clipboard blocks
     async function copyMainImageSafe() {
       if (!currentItem.images || !currentItem.images.length) return;
       const btn = document.getElementById('copyImgBtn');
@@ -222,7 +253,7 @@
       try {
         const imgUrl = currentItem.images[0];
         const img = new Image();
-        img.crossOrigin = "Anonymous"; // Crucial for Canvas
+        img.crossOrigin = "Anonymous"; 
         img.src = imgUrl;
 
         await new Promise((resolve, reject) => {
@@ -240,16 +271,16 @@
           try {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
             btn.innerText = "✅ Copied!";
-            setTimeout(() => btn.innerText = "📋 Copy Main Image (Fixed)", 2000);
+            setTimeout(() => btn.innerText = "📋 Copy Main Image (Desktop)", 2000);
           } catch (clipErr) {
-            alert("Your browser restricts clipboard access. Please long-press or right-click the image to copy.");
-            btn.innerText = "📋 Copy Main Image (Fixed)";
+            alert("Clipboard restricted. Please long-press the image to copy.");
+            btn.innerText = "📋 Copy Main Image (Desktop)";
           }
         }, 'image/png');
 
       } catch (err) {
-        alert("Could not process image due to cross-origin policies. Long-press to copy.");
-        btn.innerText = "📋 Copy Main Image (Fixed)";
+        alert("Cross-origin restricted. Long-press to copy.");
+        btn.innerText = "📋 Copy Main Image (Desktop)";
       }
     }
 
@@ -264,51 +295,55 @@
       document.body.removeChild(a);
     }
 
-    // FIXED: iOS Safari Crash Protection
     async function executeShareSafe() {
       const shareText = document.getElementById('customMessage').value;
       const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      
+      const btn = document.getElementById('btnShareWa');
+      btn.innerText = "Preparing Media...";
 
-      // Attempt native share with media, but catch all errors instantly to prevent crashes
-      if (navigator.canShare) {
+      if (navigator.canShare && navigator.share) {
         try {
           let mediaFiles = [];
+          
           if (currentItem.video) {
              const vRes = await fetch(currentItem.video);
-             mediaFiles.push(new File([await vRes.blob()], 'video.mp4', { type: 'video/mp4' }));
+             const vBlob = await vRes.blob();
+             const vType = vBlob.type || 'video/mp4'; 
+             mediaFiles.push(new File([vBlob], 'product_video.mp4', { type: vType }));
           } else if (currentItem.images && currentItem.images.length > 0) {
-             const iRes = await fetch(currentItem.images[0]);
-             mediaFiles.push(new File([await iRes.blob()], 'image.jpg', { type: 'image/jpeg' }));
+             const maxImages = Math.min(currentItem.images.length, 4);
+             for(let i = 0; i < maxImages; i++) {
+                 const iRes = await fetch(currentItem.images[i]);
+                 const iBlob = await iRes.blob();
+                 const iType = iBlob.type || 'image/jpeg';
+                 mediaFiles.push(new File([iBlob], `product_image_${i}.jpg`, { type: iType }));
+             }
           }
 
-          if (mediaFiles.length && navigator.canShare({ files: mediaFiles })) {
+          if (mediaFiles.length > 0 && navigator.canShare({ files: mediaFiles })) {
              await navigator.share({ files: mediaFiles, text: shareText });
+             btn.innerText = "Share to WhatsApp";
              closeModal();
              return;
           }
         } catch (e) {
-          console.log("Native share denied or crashed, falling back to basic URL open.");
+          console.log("Native share rejected the media format, executing graceful fallback.");
         }
       }
 
-      // Safe Fallback for iOS/Mac/Windows
+      if (currentItem.video) {
+         downloadProductVideo();
+         alert("Video format was unsupported for direct sharing. Downloading video to your device so you can attach it in WhatsApp.");
+      }
+      
       window.open(waUrl, '_blank');
+      btn.innerText = "Share to WhatsApp";
       closeModal();
     }
 
-    function startVoiceSearch() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) return;
-      const rec = new SpeechRecognition();
-      rec.lang = 'en-IN';
-      rec.onresult = (e) => {
-        document.getElementById('search').value = e.results[0][0].transcript;
-        filterProducts();
-      };
-      rec.start();
-    }
-
-    window.onload = loadCatalog;
+    // Auto-fetch products on page load
+    window.onload = () => fetchProducts(true);
   </script>
 </body>
 </html>
