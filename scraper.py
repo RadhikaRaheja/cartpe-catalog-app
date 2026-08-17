@@ -136,8 +136,13 @@ def scrape_segment(store_name, base_url, category_path, slug):
     # Step 3: Push to Supabase Database
     if products:
         print(f"\nPushing {len(products)} products to Supabase...")
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_KEY")
+        
+        supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+        supabase_key = os.environ.get("SUPABASE_KEY", "").strip()
+        
+        # Auto-clean the URL to prevent PGRST125 errors if the secret has extra paths
+        supabase_url = re.sub(r'/rest/v1/?$', '', supabase_url)
+        supabase_url = supabase_url.rstrip("/")
         
         if not supabase_url or not supabase_key:
             print("ERROR: Supabase credentials not found in environment variables.")
@@ -156,10 +161,4 @@ def scrape_segment(store_name, base_url, category_path, slug):
                 
         print(f"Successfully synced {success_count} items to the cloud database.")
     else:
-        print("No products found to push.")
-
-if __name__ == "__main__":
-    if len(sys.argv) >= 5:
-        scrape_segment(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
-    else:
-        scrape_segment("NM Official", "https://nmofficial.cartpe.in", "allcategory.html", "nm_official")
+        print("No products found to push.")in", "allcategory.html", "nm_official")
