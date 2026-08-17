@@ -161,4 +161,10 @@ def scrape_segment(store_name, base_url, category_path, slug):
                 
         print(f"Successfully synced {success_count} items to the cloud database.")
     else:
-        print("No products found to push.")in", "allcategory.html", "nm_official")
+        print("No products found to push.")
+
+if __name__ == "__main__":
+    if len(sys.argv) >= 5:
+        scrape_segment(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    else:
+        scrape_segment("NM Official", "https://nmofficial.cartpe.in", "allcategory.html", "nm_official")
