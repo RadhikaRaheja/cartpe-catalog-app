@@ -88,7 +88,7 @@ def extract_clean_price(soup):
 def run_sync():
     supabase_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
     supabase_key = os.environ.get("SUPABASE_KEY", "").strip()
-    target_vendor = os.environ.get("TARGET_VENDOR", "").strip() # MATRIX LISTENER ADDED
+    target_vendor = os.environ.get("TARGET_VENDOR", "").strip() 
     
     supabase_url = re.sub(r'/rest/v1/?$', '', supabase_url)
 
@@ -104,7 +104,6 @@ def run_sync():
 
     vendor_list = supabase.table("vendors").select("*").eq("active", True).order("sort_order").execute().data or []
     
-    # ISOLATE VENDOR IF RUNNING IN MATRIX MODE
     if target_vendor:
         vendor_list = [v for v in vendor_list if v["name"].strip().lower() == target_vendor.lower()]
         print(f"--- Matrix Cloud Mode: Isolated Server specifically for [{target_vendor}] ---")
@@ -113,7 +112,8 @@ def run_sync():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
-        page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "image", "media"] else route.continue_())
+        # Keep media blocked to save time, but allow the main product images to render
+        page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["font", "media"] else route.continue_())
 
         for store in vendor_list:
             store_name = store["name"]
@@ -139,7 +139,7 @@ def run_sync():
                             btn = page.get_by_text("View More", exact=False)
                             if btn.is_visible():
                                 btn.click()
-                                time.sleep(0.8)
+                                time.sleep(1)
                             else: break
                         except: break
                     
@@ -151,7 +151,7 @@ def run_sync():
 
             for prod_url in seen_urls:
                 try:
-                    page.goto(prod_url, timeout=12000, wait_until="domcontentloaded")
+                    page.goto(prod_url, timeout=15000, wait_until="load")
                     p_soup = BeautifulSoup(page.content(), "html.parser")
 
                     title = clean_vendor_codes(p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown")
@@ -159,17 +159,33 @@ def run_sync():
                     category = classify_product(title, prod_url)
                     sizes = extract_sizes(p_soup, p_soup.get_text())
 
+                    # THE FIX: Reverted to the original working image logic, upgraded with lazy-load checks
                     images = []
-                    for img in (p_soup.find("div", {"role": "main"}) or p_soup).find_all("img", src=re.compile(r"gallery_(md|lg)")):
-                        images.append(img["src"].replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg"))
+                    for img in p_soup.find_all("img"):
+                        # Check data-src first (lazy load), then src
+                        src = img.get("data-src") or img.get("data-original") or img.get("src") or ""
+                        
+                        # Only grab valid product images, exactly like the original code did
+                        if re.search(r"gallery_(md|lg|sm)|uploads", src, re.I):
+                            clean_src = src.replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg")
+                            if not clean_src.startswith("http"):
+                                clean_src = base_url + clean_src
+                            images.append(clean_src)
 
+                    images = list(set(images))
                     video_url = extract_video_url(p_soup, base_url)
 
                     if images and base_price > 0:
                         print(f"✅ Extracted: ₹{base_price} | {title[:40]}...") 
-                        payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(), "images": list(set(images)), "video": video_url, "sizes": sizes, "url": prod_url}
+                        payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(), "images": images, "video": video_url, "sizes": sizes, "url": prod_url}
                         supabase.table("products").upsert(payload, on_conflict="url").execute()
-                except: continue
+                    else:
+                        print(f"❌ Skipped (Missing Data): {prod_url} | Price: ₹{base_price} | Images Found: {len(images)}")
+                        
+                except Exception as e: 
+                    print(f"⚠️ Error loading {prod_url}: {e}")
+                    continue
+                    
         browser.close()
 
 if __name__ == "__main__":
