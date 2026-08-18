@@ -2,12 +2,33 @@ name: Reseller Catalog Sync
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours automatically
-  workflow_dispatch:       # Adds a "Run workflow" button in GitHub to trigger manually
+    - cron: '0 */6 * * *'  
+  workflow_dispatch:       
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # If one server fails, let the others keep going
+      matrix:
+        # These names must exactly match how they are written in your Supabase 'vendors' table
+        vendor:
+          - "Muzammil Surat"
+          - "Bag4u by Dolly"
+          - "Bagworld by Dolly"
+          - "Le Brouges Bags"
+          - "Le Brouges Sneakers"
+          - "NM Official"
+          - "Drape Studio"
+          - "Yusuf Surat Royal Shoes"
+          - "Yusuf Surat Shoe Mart"
+          - "Yusuf Surat Shoe Trendz"
+          - "Yusuf Surat Metro Kicks"
+          - "Yusuf Surat Foot Locker"
+          - "Yusuf Surat Classy Shoes"
+          - "Farhan Surat Bagmania"
+          - "Farhan Surat Kicksmania"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -26,4 +47,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TARGET_VENDOR: ${{ matrix.vendor }}
         run: python scraper.py
