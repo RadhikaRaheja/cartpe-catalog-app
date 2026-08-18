@@ -65,15 +65,12 @@ def extract_sizes(soup, text_content):
     return sorted(list(sizes), key=sort_key)
 
 def extract_clean_price(soup):
-    # Rip out strikethrough tags entirely
     for del_tag in soup.find_all(["del", "s", "strike"]):
         del_tag.decompose()
-    # Rip out hidden CSS line-through elements
     for tag in soup.find_all(style=re.compile(r"text-decoration:\s*line-through", re.I)):
         tag.decompose()
         
     for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
-        # Use a space separator to prevent numbers merging (1100 and 4100 -> "1100 4100")
         txt = el.get_text(separator=" ", strip=True).replace(",", "")
         nums = re.findall(r'\b\d+\b', txt)
         if nums and int(nums[0]) > 0:
@@ -98,8 +95,13 @@ def run_sync():
         return
 
     supabase: Client = create_client(supabase_url, supabase_key)
+    
+    # FETCH DYNAMIC DEEP SYNC LIMIT FROM DATABASE
+    settings_res = supabase.table("settings").select("sync_limit").eq("id", 1).execute()
+    sync_limit = settings_res.data[0]["sync_limit"] if settings_res.data else 6
+    print(f"--- Configuration Loaded | Scraper Depth Limit: {sync_limit} scrolls ---")
+
     vendor_list = supabase.table("vendors").select("*").eq("active", True).execute().data or []
-    print(f"Loaded {len(vendor_list)} active vendors.")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -124,7 +126,8 @@ def run_sync():
             for cat_url in categories:
                 try:
                     page.goto(cat_url, timeout=20000)
-                    for _ in range(100): # Keep this at 100 to catch everything on the deep sync
+                    # DYNAMIC SCROLLING APPLIED HERE
+                    for _ in range(sync_limit): 
                         page.keyboard.press("End")
                         time.sleep(0.5)
                         try:
