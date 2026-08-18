@@ -10,65 +10,77 @@
     :root {
       --primary: #25D366;
       --bg: #121212;
-      --card-bg: #1e1e1e;
-      --border: #2a2a2a;
+      --surface: #1e1e1e;
+      --surface-card: #181818;
+      --border: #2c2c2c;
       --text: #ffffff;
-      --muted: #888888;
+      --muted: #999999;
+      --accent-blue: #1da1f2;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding-bottom: 3rem; }
+    body { background: var(--bg); color: var(--text); padding-bottom: 4rem; overflow-x: hidden; }
+
+    /* Sticky Navbar */
+    header { background: var(--surface-card); padding: 0.9rem 1.2rem; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); }
+    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; max-width: 1400px; margin-inline: auto; }
+    .header-top h1 { font-size: 1.3rem; font-weight: 900; letter-spacing: -0.5px; }
+    .btn-add-store { background: #282828; color: #fff; border: 1px solid #444; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
     
-    header { background: #181818; padding: 1rem; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); }
-    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
-    .header-top h1 { font-size: 1.3rem; font-weight: 800; }
-    .btn-add-store { background: #333; color: #fff; border: 1px solid #444; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
-    
-    .search-row { display: flex; gap: 0.5rem; }
-    .search-row input { flex: 1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; color: #fff; padding: 0.7rem 1rem; font-size: 0.95rem; }
-    
-    .filter-section { padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; border-bottom: 1px solid var(--border); }
+    .search-row { max-width: 1400px; margin-inline: auto; }
+    .search-row input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: #fff; padding: 0.75rem 1rem; font-size: 0.95rem; }
+
+    /* Filters Layout */
+    .filter-wrapper { max-width: 1400px; margin-inline: auto; padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.6rem; }
     .filter-row { display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; gap: 0.4rem; }
     .filter-row::-webkit-scrollbar { display: none; }
-    .filter-label { font-size: 0.75rem; color: var(--muted); font-weight: 700; text-transform: uppercase; min-width: 55px; }
-    .chip { background: var(--card-bg); border: 1px solid var(--border); color: #bbb; padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+    .filter-label { font-size: 0.75rem; color: var(--muted); font-weight: 800; text-transform: uppercase; min-width: 65px; }
+    .chip { background: var(--surface); border: 1px solid var(--border); color: #bbb; padding: 0.45rem 0.9rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
     .chip.active { background: var(--primary); color: #000; border-color: var(--primary); }
 
-    .sort-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; font-size: 0.8rem; color: var(--muted); }
-    .sort-select { background: transparent; color: #fff; border: 1px solid #444; padding: 0.3rem 0.6rem; border-radius: 6px; }
+    .control-bar { max-width: 1400px; margin-inline: auto; display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--muted); }
+    .sort-select { background: var(--surface); color: #fff; border: 1px solid var(--border); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.85rem; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; padding: 1rem; }
-    .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); display: flex; flex-direction: column; }
-    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 260px; background: #000; }
-    .media-scroller img { width: 100%; height: 260px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; }
+    /* Responsive Grid */
+    .grid { max-width: 1400px; margin-inline: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; padding: 1.2rem; }
+    .card { background: var(--surface); border-radius: 14px; overflow: hidden; border: 1px solid var(--border); display: flex; flex-direction: column; }
     
-    .card-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
-    .badges { display: flex; gap: 0.4rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    /* Clean Media Carousel without ugly system scrollbars */
+    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 280px; background: #000; scrollbar-width: none; }
+    .media-scroller::-webkit-scrollbar { display: none; }
+    .media-scroller img { width: 100%; height: 280px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; }
+    
+    .card-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.45rem; flex: 1; }
+    .badges { display: flex; gap: 0.4rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; flex-wrap: wrap; }
     .badge-vendor { color: var(--muted); }
     .badge-category { color: var(--primary); }
-    .badge-video { color: #1da1f2; }
-    .title { font-size: 0.95rem; font-weight: 600; line-height: 1.3; }
+    .badge-video { color: var(--accent-blue); }
+    .badge-size { color: #f1c40f; background: rgba(241,196,15,0.1); padding: 2px 6px; border-radius: 4px; }
+    
+    .title { font-size: 0.95rem; font-weight: 600; line-height: 1.35; color: #fff; }
     .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 0.3rem; }
-    .base-price { color: var(--muted); font-size: 0.9rem; }
-    .stock-tag { font-size: 0.75rem; font-weight: 700; }
+    .base-price { color: var(--muted); font-size: 0.9rem; font-weight: 700; }
+    .stock-tag { font-size: 0.75rem; font-weight: 800; }
     .in-stock { color: var(--primary); }
     .out-of-stock { color: #ff4444; }
 
-    .btn-action { background: var(--primary); color: #000; border: none; font-weight: 700; padding: 0.75rem; border-radius: 8px; cursor: pointer; margin-top: auto; }
+    .btn-action { background: var(--primary); color: #000; border: none; font-weight: 800; padding: 0.8rem; border-radius: 10px; cursor: pointer; margin-top: auto; font-size: 0.9rem; }
 
-    /* Modal Sheet */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: flex-end; justify-content: center; }
-    .modal { background: #1e1e1e; width: 100%; max-width: 500px; border-radius: 16px 16px 0 0; padding: 1.2rem; max-height: 90vh; overflow-y: auto; border: 1px solid #333; display: flex; flex-direction: column; gap: 0.8rem; }
-    .quick-margin { display: flex; gap: 0.4rem; }
-    .quick-margin button { flex: 1; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 0.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
-    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.7rem; border-radius: 8px; font-size: 1rem; font-weight: 700; width: 100%; }
-    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 0.7rem; border-radius: 8px; font-size: 0.85rem; height: 120px; resize: none; width: 100%; }
+    /* Modal / Bottom Sheet */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
+    .modal { background: #1c1c1c; width: 100%; max-width: 520px; border-radius: 18px; padding: 1.4rem; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.85rem; scrollbar-width: none; }
+    .modal::-webkit-scrollbar { display: none; }
     
-    .staged-actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
-    .btn-stage { padding: 0.8rem; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; text-align: center; }
+    .quick-margin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+    .quick-margin-grid button { background: #262626; color: #fff; border: 1px solid #3c3c3c; padding: 0.55rem; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 1.05rem; font-weight: 800; width: 100%; }
+    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 0.85rem; height: 130px; resize: none; width: 100%; line-height: 1.4; }
+    
+    .staged-actions { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.3rem; }
+    .btn-stage { padding: 0.85rem; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; font-size: 0.9rem; text-align: center; }
     .btn-stage-1 { background: #2c3e50; color: #fff; }
-    .btn-stage-2 { background: #1da1f2; color: #fff; }
+    .btn-stage-2 { background: var(--accent-blue); color: #fff; }
     .btn-stage-3 { background: var(--primary); color: #000; }
-    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.5rem; cursor: pointer; }
+    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.5rem; cursor: pointer; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -83,7 +95,7 @@
     </div>
   </header>
 
-  <div class="filter-section">
+  <div class="filter-wrapper">
     <div class="filter-row" id="vendorFilterRow">
       <span class="filter-label">Vendor:</span>
       <div class="chip active" onclick="setVendor('all', this)">All</div>
@@ -101,7 +113,7 @@
     </div>
   </div>
 
-  <div class="sort-row">
+  <div class="control-bar">
     <span id="productCount">Loading inventory...</span>
     <select class="sort-select" id="sortSelect" onchange="fetchProducts()">
       <option value="newest">Newest First</option>
@@ -112,27 +124,33 @@
 
   <div class="grid" id="productGrid"></div>
 
-  <!-- 3-Step Sharing Sheet -->
-  <div class="modal-overlay" id="shareModal">
+  <!-- Share Modal -->
+  <div class="modal-overlay" id="shareModal" onclick="if(event.target === this) closeModal()">
     <div class="modal">
-      <h3 id="modalTitle" style="color: var(--primary); font-size: 1rem;"></h3>
-      <div style="font-size: 0.85rem; color: var(--muted);">Base Price: ₹<span id="modalBasePrice">0</span></div>
+      <h3 id="modalTitle" style="color: var(--primary); font-size: 1.05rem;"></h3>
+      <div style="font-size: 0.85rem; color: var(--muted);">Original Listing Price: ₹<span id="modalBasePrice">0</span></div>
 
-      <div class="quick-margin">
+      <!-- Quick Margin Buttons -->
+      <div class="quick-margin-grid">
+        <button onclick="addMargin(100)">+₹100</button>
+        <button onclick="addMargin(250)">+₹250</button>
         <button onclick="addMargin(300)">+₹300</button>
         <button onclick="addMargin(500)">+₹500</button>
+        <button onclick="addMargin(700)">+₹700</button>
         <button onclick="addMargin(800)">+₹800</button>
+        <button onclick="addMargin(1000)">+₹1000</button>
+        <button onclick="resetMargin()" style="background:#442222;">Reset</button>
       </div>
 
       <input type="number" id="finalPriceInput" class="price-input" oninput="updateCaption()" placeholder="Final Selling Price (₹)"/>
       <textarea id="customCaption" class="caption-box"></textarea>
 
-      <!-- Video Player Preview (if available) -->
-      <video id="modalVideo" style="display:none; width: 100%; border-radius: 8px; max-height: 180px; background: #000;" controls></video>
+      <!-- Video Preview -->
+      <video id="modalVideo" style="display:none; width: 100%; border-radius: 10px; max-height: 200px; background: #000;" controls></video>
 
       <div class="staged-actions">
         <button class="btn-stage btn-stage-1" id="btnShareImages" onclick="shareOrDownloadImages()">📸 Step 1: Download / Share HD Images</button>
-        <button class="btn-stage btn-stage-2" id="btnDownloadVideo" style="display:none;" onclick="downloadProductVideo()">🎥 Step 2: Download HD Video</button>
+        <button class="btn-stage btn-stage-2" id="btnShareVideo" style="display:none;" onclick="directShareOrDownloadVideo()">🎥 Step 2: Direct Share / Download HD Video</button>
         <button class="btn-stage btn-stage-3" onclick="copyCaptionAndLaunchWA()">📋 Step 3: Copy Caption & Open WhatsApp</button>
         <button class="btn-close" onclick="closeModal()">Close</button>
       </div>
@@ -143,8 +161,8 @@
     // ==========================================
     // SUPABASE CREDENTIALS
     // ==========================================
-    const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxkemp4d2FrcmRqc3pua3BlcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODc2MjUsImV4cCI6MjEwMjU2MzYyNX0.CkIKcGWlBdt_ds7cEJ6LNNkcBbpaj1fnQcaa-qHhrTk";
+    const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE";
+    const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE";
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let allProducts = [];
@@ -180,7 +198,7 @@
       if (sort === 'price_low') query = query.order('base_price', { ascending: true });
       if (sort === 'price_high') query = query.order('base_price', { ascending: false });
 
-      const { data, error } = await query.limit(200);
+      const { data } = await query.limit(250);
       if (data) {
         allProducts = data;
         renderGrid(data);
@@ -200,6 +218,7 @@
               <span class="badge-vendor">${p.vendor}</span> • 
               <span class="badge-category">${p.category}</span>
               ${p.video ? '<span class="badge-video">🎥 Video</span>' : ''}
+              ${p.sizes && p.sizes.length ? `<span class="badge-size">Sizes: ${p.sizes.join(', ')}</span>` : ''}
             </div>
             <div class="title">${p.title}</div>
             <div class="price-row">
@@ -222,13 +241,13 @@
         return `*${p.title}* 👔\n\n• Premium Quality Reversible Leather\n• Includes Brand Box, Card, Dust Bag & Tags\n\nPrice: ₹${price}/-\nFree Shipping Included 🚚`;
       } else if (cat === 'footwear') {
         const sizeStr = (p.sizes && p.sizes.length) ? p.sizes.join('-') : 'UK 6 to 10 (Confirm in DM)';
-        return `*${p.title}* ❤️\n\nMaster Quality Assurance 🔥\nSizes Available: ${sizeStr}\nIncludes Original Box & Accessories ✅\n\nPrice: ₹${price}/- (Free Shipping)`;
+        return `*${p.title}* ❤️\n\nMASTER PC WITH PREMIUM QUALITY 🔥\nSIZES :- ${sizeStr}\nComes With Original Box, Carry Bag & All accessories ✅\n\nPrice: ₹${price}/- Free Shipping Included 😍`;
       } else if (cat === 'eyewear') {
-        return `*${p.title}* 🕶️\n\n• Optical Frame / Wayfarer\n• Unisex Premium Edition\n• With Original Case & Cloth\n\nPrice: ₹${price}/- Free Shipping 🚚`;
+        return `*${p.title}* 🕶️\n\n• OPTICAL FRAME / WAYFARER\n• Unisex Premium Edition\n• With Original Case & Cloth\n\nPrice: ₹${price}/- Free Shipping 🚚`;
       } else if (cat === 'watch') {
-        return `*${p.title}* ⌚✨\n\n• Premium Automatic/Quartz Chronograph\n• Complete with Box, Manual & Tags\n\nPrice: ₹${price}/- Free Shipping Included`;
+        return `*${p.title}* ⌚✨\n\n• Premium Chronograph / Master Edition\n• Complete With Box, Manual & Tags\n\nPrice: ₹${price}/- Free Shipping Included`;
       }
-      return `*${p.title}* 😻💯\n\n• Premium Quality with Inner Branding\n• Includes Box, Dust Cover & Tags\n\nPrice: ₹${price}/- Free Shipping 🚚`;
+      return `*${p.title}* 😻💯\n\n• Premium Quality with Inner Branding\n• Includes: Original Brand Box, Dust Bag & Tags\n\nPrice: ₹${price}/- Free Shipping 🚚`;
     }
 
     function openShareModal(id) {
@@ -239,14 +258,14 @@
       updateCaption();
 
       const videoEl = document.getElementById('modalVideo');
-      const dlVidBtn = document.getElementById('btnDownloadVideo');
+      const shareVidBtn = document.getElementById('btnShareVideo');
       if (activeProduct.video) {
         videoEl.src = activeProduct.video;
         videoEl.style.display = 'block';
-        dlVidBtn.style.display = 'block';
+        shareVidBtn.style.display = 'block';
       } else {
         videoEl.style.display = 'none';
-        dlVidBtn.style.display = 'none';
+        shareVidBtn.style.display = 'none';
       }
       document.getElementById('shareModal').style.display = 'flex';
     }
@@ -261,10 +280,14 @@
       updateCaption();
     }
 
+    function resetMargin() {
+      document.getElementById('finalPriceInput').value = activeProduct.base_price;
+      updateCaption();
+    }
+
     async function shareOrDownloadImages() {
       if (!activeProduct.images || !activeProduct.images.length) return;
       
-      // Native Web Share if supported on mobile
       if (navigator.share && navigator.canShare) {
         try {
           const files = [];
@@ -280,7 +303,6 @@
         } catch(e) {}
       }
 
-      // Fallback: Trigger direct downloads for each image
       activeProduct.images.forEach((imgUrl, idx) => {
         const a = document.createElement('a');
         a.href = imgUrl;
@@ -290,11 +312,25 @@
         a.click();
         document.body.removeChild(a);
       });
-      alert("Downloading HD images directly to your device.");
     }
 
-    function downloadProductVideo() {
+    async function directShareOrDownloadVideo() {
       if (!activeProduct.video) return;
+      
+      // Direct Web Share for Video if supported (e.g. mobile Safari/Chrome)
+      if (navigator.share && navigator.canShare) {
+        try {
+          const res = await fetch(activeProduct.video);
+          const blob = await res.blob();
+          const videoFile = new File([blob], 'product_video.mp4', { type: blob.type || 'video/mp4' });
+          if (navigator.canShare({ files: [videoFile] })) {
+            await navigator.share({ files: [videoFile], title: activeProduct.title });
+            return;
+          }
+        } catch(e) {}
+      }
+
+      // Fallback: Direct Download
       const a = document.createElement('a');
       a.href = activeProduct.video;
       a.download = 'product_video.mp4';
@@ -316,7 +352,7 @@
       const url = prompt("Enter Cartpe Base URL (e.g., https://store.cartpe.in):");
       if (name && url) {
         await client.from('vendors').insert([{ name, base_url: url }]);
-        alert("Store added! The scraper will index it on its next scheduled run.");
+        alert("Store added! The scraper will index it on its next run.");
         location.reload();
       }
     }
