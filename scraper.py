@@ -65,20 +65,25 @@ def extract_sizes(soup, text_content):
     return sorted(list(sizes), key=sort_key)
 
 def extract_clean_price(soup):
+    # Rip out strikethrough tags entirely
     for del_tag in soup.find_all(["del", "s", "strike"]):
         del_tag.decompose()
+    # Rip out hidden CSS line-through elements
+    for tag in soup.find_all(style=re.compile(r"text-decoration:\s*line-through", re.I)):
+        tag.decompose()
         
     for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
-        txt = el.get_text(strip=True).replace(",", "")
-        nums = re.findall(r'\d+', txt)
+        # Use a space separator to prevent numbers merging (1100 and 4100 -> "1100 4100")
+        txt = el.get_text(separator=" ", strip=True).replace(",", "")
+        nums = re.findall(r'\b\d+\b', txt)
         if nums and int(nums[0]) > 0:
             return int(nums[0])
             
     for tag in ["h6", "h5", "h4", "span"]:
         for el in soup.find_all(tag):
-            txt = el.get_text(strip=True).replace(",", "")
+            txt = el.get_text(separator=" ", strip=True).replace(",", "")
             if "₹" in txt or "RS" in txt.upper():
-                nums = re.findall(r'\d+', txt)
+                nums = re.findall(r'\b\d+\b', txt)
                 if nums and int(nums[0]) > 0:
                     return int(nums[0])
     return 0
@@ -119,10 +124,16 @@ def run_sync():
             for cat_url in categories:
                 try:
                     page.goto(cat_url, timeout=20000)
-                    for _ in range(6):
+                    for _ in range(100): # Keep this at 100 to catch everything on the deep sync
                         page.keyboard.press("End")
                         time.sleep(0.5)
-                        if page.get_by_text("View More", exact=False).is_visible(): page.get_by_text("View More", exact=False).click()
+                        try:
+                            btn = page.get_by_text("View More", exact=False)
+                            if btn.is_visible():
+                                btn.click()
+                                time.sleep(0.8)
+                            else: break
+                        except: break
                     
                     for a in BeautifulSoup(page.content(), "html.parser").find_all("a", href=re.compile(r"-npi\d+-")):
                         seen_urls.add(a["href"] if a["href"].startswith("http") else base_url + a["href"])
