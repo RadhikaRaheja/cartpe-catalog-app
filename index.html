@@ -2,348 +2,353 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Reseller Pro Hub - Cloud Edition</title>
-  <!-- Supabase JS Client -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#121212"/>
+  <title>Reseller Pro Hub</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --primary: #25D366; --dark: #121212; --card-bg: #1e1e1e; --text: #ffffff; --text-muted: #a0a0a0; --modal-bg: #222222; --video-tag: #1da1f2; }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
-    body { background: var(--dark); color: var(--text); padding: 1rem; }
-    header { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.5rem; }
-    .top-bar { display: flex; justify-content: space-between; align-items: center; }
-    .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    input, select, button { padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid #333; background: var(--card-bg); color: var(--text); font-size: 0.95rem; }
-    .search-box { display: flex; flex: 2; min-width: 240px; gap: 0.2rem; }
-    .search-box input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-    .btn-mic { background: var(--primary); color: #000; border: none; border-top-right-radius: 8px; border-bottom-right-radius: 8px; cursor: pointer; font-weight: bold; }
+    :root {
+      --primary: #25D366;
+      --bg: #121212;
+      --card-bg: #1e1e1e;
+      --border: #2a2a2a;
+      --text: #ffffff;
+      --muted: #888888;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding-bottom: 3rem; }
     
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; }
-    .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #2a2a2a; }
-    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; background: #000; height: 260px; }
-    .media-scroller::-webkit-scrollbar { height: 5px; }
-    .media-scroller::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
-    .media-scroller img, .media-scroller video { width: 100%; height: 260px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; }
+    header { background: #181818; padding: 1rem; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); }
+    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+    .header-top h1 { font-size: 1.3rem; font-weight: 800; }
+    .btn-add-store { background: #333; color: #fff; border: 1px solid #444; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+    
+    .search-row { display: flex; gap: 0.5rem; }
+    .search-row input { flex: 1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; color: #fff; padding: 0.7rem 1rem; font-size: 0.95rem; }
+    
+    .filter-section { padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; border-bottom: 1px solid var(--border); }
+    .filter-row { display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; gap: 0.4rem; }
+    .filter-row::-webkit-scrollbar { display: none; }
+    .filter-label { font-size: 0.75rem; color: var(--muted); font-weight: 700; text-transform: uppercase; min-width: 55px; }
+    .chip { background: var(--card-bg); border: 1px solid var(--border); color: #bbb; padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+    .chip.active { background: var(--primary); color: #000; border-color: var(--primary); }
+
+    .sort-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; font-size: 0.8rem; color: var(--muted); }
+    .sort-select { background: transparent; color: #fff; border: 1px solid #444; padding: 0.3rem 0.6rem; border-radius: 6px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; padding: 1rem; }
+    .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); display: flex; flex-direction: column; }
+    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 260px; background: #000; }
+    .media-scroller img { width: 100%; height: 260px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; }
     
     .card-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
-    .meta-tags { display: flex; gap: 0.5rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; flex-wrap: wrap; }
-    .badge-video { color: var(--video-tag); }
-    .title { font-size: 1rem; font-weight: 600; line-height: 1.3; }
-    .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 0.2rem; }
-    .base-price { color: var(--text-muted); font-size: 0.85rem; text-decoration: line-through; }
-    .stock-tag { font-size: 0.8rem; font-weight: bold; }
-    .in-stock { color: var(--primary); } .out-of-stock { color: #ff4444; }
-    .btn-action { background: var(--primary); color: #000; border: none; font-weight: bold; cursor: pointer; padding: 0.8rem; border-radius: 6px; margin-top: auto; }
+    .badges { display: flex; gap: 0.4rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .badge-vendor { color: var(--muted); }
+    .badge-category { color: var(--primary); }
+    .badge-video { color: #1da1f2; }
+    .title { font-size: 0.95rem; font-weight: 600; line-height: 1.3; }
+    .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 0.3rem; }
+    .base-price { color: var(--muted); font-size: 0.9rem; }
+    .stock-tag { font-size: 0.75rem; font-weight: 700; }
+    .in-stock { color: var(--primary); }
+    .out-of-stock { color: #ff4444; }
+
+    .btn-action { background: var(--primary); color: #000; border: none; font-weight: 700; padding: 0.75rem; border-radius: 8px; cursor: pointer; margin-top: auto; }
+
+    /* Modal Sheet */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: flex-end; justify-content: center; }
+    .modal { background: #1e1e1e; width: 100%; max-width: 500px; border-radius: 16px 16px 0 0; padding: 1.2rem; max-height: 90vh; overflow-y: auto; border: 1px solid #333; display: flex; flex-direction: column; gap: 0.8rem; }
+    .quick-margin { display: flex; gap: 0.4rem; }
+    .quick-margin button { flex: 1; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 0.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.7rem; border-radius: 8px; font-size: 1rem; font-weight: 700; width: 100%; }
+    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 0.7rem; border-radius: 8px; font-size: 0.85rem; height: 120px; resize: none; width: 100%; }
     
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
-    .modal { background: var(--modal-bg); width: 90%; max-width: 420px; padding: 1.5rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.9rem; border: 1px solid #333; }
-    .quick-adds { display: flex; gap: 0.4rem; }
-    .quick-adds button { flex: 1; background: #333; border: none; cursor: pointer; padding: 0.5rem; color: #fff; }
-    textarea { width: 100%; height: 140px; padding: 0.6rem; border-radius: 8px; background: var(--card-bg); color: #fff; border: 1px solid #444; resize: none; }
-    .media-buttons { display: flex; gap: 0.5rem; flex-direction: column; }
-    .btn-media { background: #2c3e50; color: #fff; border: none; cursor: pointer; padding: 0.6rem; border-radius: 6px;}
-    .modal-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-    .modal-actions button { flex: 1; font-weight: bold; cursor: pointer; padding: 0.8rem; border-radius: 6px;}
-    .btn-cancel { background: #444; color: #fff; border: none; }
-    .btn-confirm { background: var(--primary); color: #000; border: none; }
-    #statusMessage { text-align: center; padding: 3rem 1rem; color: #a0a0a0; font-size: 1.1rem; }
-    #loadMoreBtn { display: none; margin: 2rem auto; width: 100%; max-width: 300px; background: #333; color: white; padding: 1rem; border-radius: 8px; cursor: pointer; border: 1px solid #444; font-weight: bold; text-align: center; }
+    .staged-actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
+    .btn-stage { padding: 0.8rem; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; text-align: center; }
+    .btn-stage-1 { background: #2c3e50; color: #fff; }
+    .btn-stage-2 { background: #1da1f2; color: #fff; }
+    .btn-stage-3 { background: var(--primary); color: #000; }
+    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.5rem; cursor: pointer; }
   </style>
 </head>
 <body>
 
   <header>
-    <div class="top-bar">
-      <h1>Reseller Pro Hub (Cloud)</h1>
+    <div class="header-top">
+      <h1>Reseller Pro Hub</h1>
+      <button class="btn-add-store" onclick="promptAddStore()">+ Add Store</button>
     </div>
-    <div class="controls">
-      <div class="search-box">
-        <input type="text" id="search" placeholder="Search title..." onkeypress="if(event.key === 'Enter') applyFilters()"/>
-        <button class="btn-mic" onclick="applyFilters()">🔍</button>
-      </div>
-      <select id="vendorFilter" onchange="applyFilters()">
-        <option value="all">All Vendors</option>
-        <option value="Le Brouges Sneakers">Le Brouges Sneakers</option>
-        <option value="Bagworld by Dolly">Bagworld by Dolly</option>
-        <option value="Bag4u by Dolly">Bag4u by Dolly</option>
-        <option value="Muzammil Surat">Muzammil Surat</option>
-        <option value="Le Brouges Bags">Le Brouges Bags</option>
-        <option value="NM Official">NM Official</option>
-      </select>
-      <select id="categoryFilter" onchange="applyFilters()">
-        <option value="all">All Categories</option>
-        <option value="footwear">Footwear</option>
-        <option value="bag">Bags & Clutches</option>
-      </select>
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="Search catalog..." oninput="handleSearch()" />
     </div>
   </header>
 
-  <div id="statusMessage">Connecting to Cloud Database...</div>
-  <div class="grid" id="productGrid"></div>
-  <button id="loadMoreBtn" onclick="fetchProducts()">Load More Products ↓</button>
+  <div class="filter-section">
+    <div class="filter-row" id="vendorFilterRow">
+      <span class="filter-label">Vendor:</span>
+      <div class="chip active" onclick="setVendor('all', this)">All</div>
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">Type:</span>
+      <div class="chip active" onclick="setCategory('all', this)">All</div>
+      <div class="chip" onclick="setCategory('footwear', this)">Footwear</div>
+      <div class="chip" onclick="setCategory('bag', this)">Bags</div>
+      <div class="chip" onclick="setCategory('perfume', this)">Perfumes</div>
+      <div class="chip" onclick="setCategory('belt', this)">Belts</div>
+      <div class="chip" onclick="setCategory('eyewear', this)">Eyewear</div>
+      <div class="chip" onclick="setCategory('watch', this)">Watches</div>
+      <div class="chip" onclick="setCategory('accessories', this)">Accessories</div>
+    </div>
+  </div>
 
-  <!-- Share Modal -->
+  <div class="sort-row">
+    <span id="productCount">Loading inventory...</span>
+    <select class="sort-select" id="sortSelect" onchange="fetchProducts()">
+      <option value="newest">Newest First</option>
+      <option value="price_low">Price: Low to High</option>
+      <option value="price_high">Price: High to Low</option>
+    </select>
+  </div>
+
+  <div class="grid" id="productGrid"></div>
+
+  <!-- 3-Step Sharing Sheet -->
   <div class="modal-overlay" id="shareModal">
     <div class="modal">
-      <h3>Edit & Share</h3>
-      <div id="modalTitle" style="font-weight:bold; color:var(--primary); font-size:0.95rem;"></div>
-      <div style="color:#fff;">Base Price: ₹<span id="modalBasePrice">0</span></div>
+      <h3 id="modalTitle" style="color: var(--primary); font-size: 1rem;"></h3>
+      <div style="font-size: 0.85rem; color: var(--muted);">Base Price: ₹<span id="modalBasePrice">0</span></div>
 
-      <div class="quick-adds">
-        <button onclick="addMarkup(300)">+₹300</button>
-        <button onclick="addMarkup(500)">+₹500</button>
-        <button onclick="addMarkup(800)">+₹800</button>
+      <div class="quick-margin">
+        <button onclick="addMargin(300)">+₹300</button>
+        <button onclick="addMargin(500)">+₹500</button>
+        <button onclick="addMargin(800)">+₹800</button>
       </div>
 
-      <input type="number" id="finalPrice" placeholder="Final Selling Price (₹)" oninput="updateMessagePreview()"/>
-      <textarea id="customMessage"></textarea>
+      <input type="number" id="finalPriceInput" class="price-input" oninput="updateCaption()" placeholder="Final Selling Price (₹)"/>
+      <textarea id="customCaption" class="caption-box"></textarea>
 
-      <div class="media-buttons">
-        <button class="btn-media" id="copyImgBtn" onclick="copyMainImageSafe()">📋 Copy Main Image (Desktop)</button>
-        <button class="btn-media" id="dlVideoBtn" style="display:none;" onclick="downloadProductVideo()">🎥 Download HD Video</button>
-      </div>
+      <!-- Video Player Preview (if available) -->
+      <video id="modalVideo" style="display:none; width: 100%; border-radius: 8px; max-height: 180px; background: #000;" controls></video>
 
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-confirm" id="btnShareWa" onclick="executeShareSafe()">Share to WhatsApp</button>
+      <div class="staged-actions">
+        <button class="btn-stage btn-stage-1" id="btnShareImages" onclick="shareOrDownloadImages()">📸 Step 1: Download / Share HD Images</button>
+        <button class="btn-stage btn-stage-2" id="btnDownloadVideo" style="display:none;" onclick="downloadProductVideo()">🎥 Step 2: Download HD Video</button>
+        <button class="btn-stage btn-stage-3" onclick="copyCaptionAndLaunchWA()">📋 Step 3: Copy Caption & Open WhatsApp</button>
+        <button class="btn-close" onclick="closeModal()">Close</button>
       </div>
     </div>
   </div>
 
   <script>
     // ==========================================
-    // PASTE YOUR SUPABASE KEYS HERE
+    // SUPABASE CREDENTIALS
     // ==========================================
-    const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co"; 
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxkemp4d2FrcmRqc3pua3BlcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODc2MjUsImV4cCI6MjEwMjU2MzYyNX0.CkIKcGWlBdt_ds7cEJ6LNNkcBbpaj1fnQcaa-qHhrTk";
-    
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE";
+    const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE";
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let globalData = [];
-    let currentItem = null;
-    let currentPage = 0;
-    const pageSize = 40; // Safely loads 40 items at a time
+    let allProducts = [];
+    let activeProduct = null;
+    let selectedVendor = 'all';
+    let selectedCategory = 'all';
 
-    async function fetchProducts(reset = false) {
-      if(reset) {
-        currentPage = 0;
-        globalData = [];
-        document.getElementById('productGrid').innerHTML = '';
-        document.getElementById('loadMoreBtn').style.display = 'none';
-        document.getElementById('statusMessage').style.display = 'block';
-        document.getElementById('statusMessage').innerText = 'Fetching catalog...';
-      }
-
-      const q = document.getElementById('search').value;
-      const vendor = document.getElementById('vendorFilter').value;
-      const cat = document.getElementById('categoryFilter').value;
-
-      let query = supabaseClient.from('products').select('*');
-
-      if (q) query = query.ilike('title', `%${q}%`);
-      if (vendor !== 'all') query = query.eq('vendor', vendor);
-      if (cat !== 'all') query = query.eq('category', cat);
-
-      const start = currentPage * pageSize;
-      const end = start + pageSize - 1;
-
-      // Pull latest items first
-      query = query.order('created_at', { ascending: false }).range(start, end);
-
-      const { data, error } = await query;
-      document.getElementById('statusMessage').style.display = 'none';
-
-      if (error) {
-        alert("Database connection error. Check your Supabase URL and Key.");
-        return;
-      }
-
-      globalData = globalData.concat(data);
-      render(data, reset);
-
-      if (data.length === pageSize) {
-        document.getElementById('loadMoreBtn').style.display = 'block';
-      } else {
-        document.getElementById('loadMoreBtn').style.display = 'none';
-      }
-      
-      currentPage++;
+    async function init() {
+      await loadVendors();
+      await fetchProducts();
     }
 
-    function applyFilters() {
-      fetchProducts(true);
+    async function loadVendors() {
+      const { data } = await client.from('vendors').select('*').eq('active', true);
+      const row = document.getElementById('vendorFilterRow');
+      (data || []).forEach(v => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerText = v.name;
+        chip.onclick = () => setVendor(v.name, chip);
+        row.appendChild(chip);
+      });
     }
 
-    function render(items, reset) {
-      const container = document.getElementById('productGrid');
-      if(items.length === 0 && reset) {
-          container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color:#a0a0a0;">No items found.</div>';
-          return;
+    async function fetchProducts() {
+      const sort = document.getElementById('sortSelect').value;
+      let query = client.from('products').select('*');
+
+      if (selectedVendor !== 'all') query = query.eq('vendor', selectedVendor);
+      if (selectedCategory !== 'all') query = query.eq('category', selectedCategory);
+
+      if (sort === 'newest') query = query.order('created_at', { ascending: false });
+      if (sort === 'price_low') query = query.order('base_price', { ascending: true });
+      if (sort === 'price_high') query = query.order('base_price', { ascending: false });
+
+      const { data, error } = await query.limit(200);
+      if (data) {
+        allProducts = data;
+        renderGrid(data);
       }
-      
-      const newHTML = items.map(item => `
-        <div class="card" style="opacity: ${item.in_stock ? '1' : '0.55'}">
+    }
+
+    function renderGrid(items) {
+      document.getElementById('productCount').innerText = `${items.length} items loaded`;
+      const grid = document.getElementById('productGrid');
+      grid.innerHTML = items.map(p => `
+        <div class="card" style="opacity: ${p.in_stock ? 1 : 0.55}">
           <div class="media-scroller">
-            ${(item.images || []).map(img => `<img src="${img}" loading="lazy" />`).join('')}
-            ${item.video ? `<video src="${item.video}" controls playsinline preload="none"></video>` : ''}
+            ${(p.images || []).map(img => `<img src="${img}" loading="lazy" />`).join('')}
           </div>
           <div class="card-body">
-            <div class="meta-tags">
-              <span>${item.vendor || 'Unknown'}</span> • <span>${item.category || 'General'}</span>
-              ${item.video ? '<span class="badge-video">🎥 VIDEO</span>' : ''}
+            <div class="badges">
+              <span class="badge-vendor">${p.vendor}</span> • 
+              <span class="badge-category">${p.category}</span>
+              ${p.video ? '<span class="badge-video">🎥 Video</span>' : ''}
             </div>
-            <div class="title">${item.title}</div>
+            <div class="title">${p.title}</div>
             <div class="price-row">
-              <span class="base-price">Base: ₹${item.base_price || 0}</span>
-              <span class="stock-tag ${item.in_stock ? 'in-stock' : 'out-of-stock'}">
-                ${item.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
+              <span class="base-price">Base: ₹${p.base_price}</span>
+              <span class="stock-tag ${p.in_stock ? 'in-stock' : 'out-of-stock'}">
+                ${p.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
               </span>
             </div>
-            <!-- UUID requires string wrapper -->
-            <button class="btn-action" onclick="openShareModal('${item.id}')">Edit & Share</button>
+            <button class="btn-action" onclick="openShareModal('${p.id}')">Access Media & Share</button>
           </div>
         </div>
       `).join('');
-      
-      container.innerHTML += newHTML;
     }
 
-    function generateDescription(item, sellingPrice) {
-      if (item.category === 'footwear') {
-        return `*${item.title}*\n\nQuality: Top Notch Assurance\nSizes Available: UK 6 to 10 (Confirm in DM)\n\nPrice: ₹${sellingPrice} (Free Shipping Included)`;
-      } else if (item.category === 'bag') {
-        return `*${item.title}* 😻💯\n\nQuality: Premium ✌️😍\nIncludes: Original Brand Box, Dust Bag & Tags\n\nPrice: ₹${sellingPrice}`;
-      } else {
-        return `*${item.title}* ✨\n\nPremium Edition\n\nPrice: ₹${sellingPrice}`;
+    function generateCustomerTemplate(p, price) {
+      const cat = p.category;
+      if (cat === 'perfume') {
+        return `*${p.title}* 🌸✨\n\n• Premium Long Lasting Fragrance\n• 100% Sealed Pack with Barcode & Batch Code\n• Perfect for Gifting\n\nPrice: ₹${price} only\nShipping: Free Included 📦`;
+      } else if (cat === 'belt') {
+        return `*${p.title}* 👔\n\n• Premium Quality Reversible Leather\n• Includes Brand Box, Card, Dust Bag & Tags\n\nPrice: ₹${price}/-\nFree Shipping Included 🚚`;
+      } else if (cat === 'footwear') {
+        const sizeStr = (p.sizes && p.sizes.length) ? p.sizes.join('-') : 'UK 6 to 10 (Confirm in DM)';
+        return `*${p.title}* ❤️\n\nMaster Quality Assurance 🔥\nSizes Available: ${sizeStr}\nIncludes Original Box & Accessories ✅\n\nPrice: ₹${price}/- (Free Shipping)`;
+      } else if (cat === 'eyewear') {
+        return `*${p.title}* 🕶️\n\n• Optical Frame / Wayfarer\n• Unisex Premium Edition\n• With Original Case & Cloth\n\nPrice: ₹${price}/- Free Shipping 🚚`;
+      } else if (cat === 'watch') {
+        return `*${p.title}* ⌚✨\n\n• Premium Automatic/Quartz Chronograph\n• Complete with Box, Manual & Tags\n\nPrice: ₹${price}/- Free Shipping Included`;
       }
+      return `*${p.title}* 😻💯\n\n• Premium Quality with Inner Branding\n• Includes Box, Dust Cover & Tags\n\nPrice: ₹${price}/- Free Shipping 🚚`;
     }
 
     function openShareModal(id) {
-      currentItem = globalData.find(p => p.id === id);
-      document.getElementById('modalTitle').innerText = currentItem.title;
-      document.getElementById('modalBasePrice').innerText = currentItem.base_price;
-      
-      const defaultMarkup = currentItem.category === 'bag' ? 800 : 500; 
-      document.getElementById('finalPrice').value = currentItem.base_price + defaultMarkup;
-      
-      updateMessagePreview();
-      
-      const dlBtn = document.getElementById('dlVideoBtn');
-      dlBtn.style.display = currentItem.video ? 'block' : 'none';
+      activeProduct = allProducts.find(x => x.id === id);
+      document.getElementById('modalTitle').innerText = activeProduct.title;
+      document.getElementById('modalBasePrice').innerText = activeProduct.base_price;
+      document.getElementById('finalPriceInput').value = activeProduct.base_price;
+      updateCaption();
+
+      const videoEl = document.getElementById('modalVideo');
+      const dlVidBtn = document.getElementById('btnDownloadVideo');
+      if (activeProduct.video) {
+        videoEl.src = activeProduct.video;
+        videoEl.style.display = 'block';
+        dlVidBtn.style.display = 'block';
+      } else {
+        videoEl.style.display = 'none';
+        dlVidBtn.style.display = 'none';
+      }
       document.getElementById('shareModal').style.display = 'flex';
     }
 
-    function updateMessagePreview() {
-      const price = document.getElementById('finalPrice').value;
-      document.getElementById('customMessage').value = generateDescription(currentItem, price);
+    function updateCaption() {
+      const price = document.getElementById('finalPriceInput').value || activeProduct.base_price;
+      document.getElementById('customCaption').value = generateCustomerTemplate(activeProduct, price);
     }
 
-    function addMarkup(amt) {
-      document.getElementById('finalPrice').value = parseInt(document.getElementById('modalBasePrice').innerText) + amt;
-      updateMessagePreview();
+    function addMargin(extra) {
+      document.getElementById('finalPriceInput').value = activeProduct.base_price + extra;
+      updateCaption();
     }
 
-    function closeModal() { document.getElementById('shareModal').style.display = 'none'; }
-
-    async function copyMainImageSafe() {
-      if (!currentItem.images || !currentItem.images.length) return;
-      const btn = document.getElementById('copyImgBtn');
-      btn.innerText = "Copying...";
+    async function shareOrDownloadImages() {
+      if (!activeProduct.images || !activeProduct.images.length) return;
       
-      try {
-        const imgUrl = currentItem.images[0];
-        const img = new Image();
-        img.crossOrigin = "Anonymous"; 
-        img.src = imgUrl;
-
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        canvas.toBlob(async (blob) => {
-          try {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            btn.innerText = "✅ Copied!";
-            setTimeout(() => btn.innerText = "📋 Copy Main Image (Desktop)", 2000);
-          } catch (clipErr) {
-            alert("Clipboard restricted. Please long-press the image to copy.");
-            btn.innerText = "📋 Copy Main Image (Desktop)";
+      // Native Web Share if supported on mobile
+      if (navigator.share && navigator.canShare) {
+        try {
+          const files = [];
+          for (let i = 0; i < Math.min(activeProduct.images.length, 5); i++) {
+            const res = await fetch(activeProduct.images[i]);
+            const blob = await res.blob();
+            files.push(new File([blob], `product_${i}.jpg`, { type: 'image/jpeg' }));
           }
-        }, 'image/png');
-
-      } catch (err) {
-        alert("Cross-origin restricted. Long-press to copy.");
-        btn.innerText = "📋 Copy Main Image (Desktop)";
+          if (navigator.canShare({ files })) {
+            await navigator.share({ files, title: activeProduct.title });
+            return;
+          }
+        } catch(e) {}
       }
+
+      // Fallback: Trigger direct downloads for each image
+      activeProduct.images.forEach((imgUrl, idx) => {
+        const a = document.createElement('a');
+        a.href = imgUrl;
+        a.download = `product_${idx + 1}.jpg`;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+      alert("Downloading HD images directly to your device.");
     }
 
     function downloadProductVideo() {
-      if (!currentItem.video) return;
+      if (!activeProduct.video) return;
       const a = document.createElement('a');
-      a.href = currentItem.video;
-      a.download = `video.mp4`;
+      a.href = activeProduct.video;
+      a.download = 'product_video.mp4';
       a.target = '_blank';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     }
 
-    async function executeShareSafe() {
-      const shareText = document.getElementById('customMessage').value;
-      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-      
-      const btn = document.getElementById('btnShareWa');
-      btn.innerText = "Preparing Media...";
-
-      if (navigator.canShare && navigator.share) {
-        try {
-          let mediaFiles = [];
-          
-          if (currentItem.video) {
-             const vRes = await fetch(currentItem.video);
-             const vBlob = await vRes.blob();
-             const vType = vBlob.type || 'video/mp4'; 
-             mediaFiles.push(new File([vBlob], 'product_video.mp4', { type: vType }));
-          } else if (currentItem.images && currentItem.images.length > 0) {
-             const maxImages = Math.min(currentItem.images.length, 4);
-             for(let i = 0; i < maxImages; i++) {
-                 const iRes = await fetch(currentItem.images[i]);
-                 const iBlob = await iRes.blob();
-                 const iType = iBlob.type || 'image/jpeg';
-                 mediaFiles.push(new File([iBlob], `product_image_${i}.jpg`, { type: iType }));
-             }
-          }
-
-          if (mediaFiles.length > 0 && navigator.canShare({ files: mediaFiles })) {
-             await navigator.share({ files: mediaFiles, text: shareText });
-             btn.innerText = "Share to WhatsApp";
-             closeModal();
-             return;
-          }
-        } catch (e) {
-          console.log("Native share rejected the media format, executing graceful fallback.");
-        }
-      }
-
-      if (currentItem.video) {
-         downloadProductVideo();
-         alert("Video format was unsupported for direct sharing. Downloading video to your device so you can attach it in WhatsApp.");
-      }
-      
-      window.open(waUrl, '_blank');
-      btn.innerText = "Share to WhatsApp";
-      closeModal();
+    function copyCaptionAndLaunchWA() {
+      const text = document.getElementById('customCaption').value;
+      navigator.clipboard.writeText(text).then(() => {
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+      });
     }
 
-    // Auto-fetch products on page load
-    window.onload = () => fetchProducts(true);
+    async function promptAddStore() {
+      const name = prompt("Enter Store Name (e.g., Dolly Bags):");
+      const url = prompt("Enter Cartpe Base URL (e.g., https://store.cartpe.in):");
+      if (name && url) {
+        await client.from('vendors').insert([{ name, base_url: url }]);
+        alert("Store added! The scraper will index it on its next scheduled run.");
+        location.reload();
+      }
+    }
+
+    function setVendor(v, el) {
+      selectedVendor = v;
+      document.querySelectorAll('#vendorFilterRow .chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      fetchProducts();
+    }
+
+    function setCategory(c, el) {
+      selectedCategory = c;
+      el.parentElement.querySelectorAll('.chip').forEach(chip => chip.classList.remove('active'));
+      el.classList.add('active');
+      fetchProducts();
+    }
+
+    function handleSearch() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const filtered = allProducts.filter(p => p.title.toLowerCase().includes(q) || p.vendor.toLowerCase().includes(q));
+      renderGrid(filtered);
+    }
+
+    function closeModal() {
+      document.getElementById('shareModal').style.display = 'none';
+      const videoEl = document.getElementById('modalVideo');
+      videoEl.pause();
+      videoEl.src = '';
+    }
+
+    window.onload = init;
   </script>
 </body>
 </html>
