@@ -65,24 +65,25 @@ def extract_sizes(soup, text_content):
     return sorted(list(sizes), key=sort_key)
 
 def extract_clean_price(soup):
-    for tag in soup.find_all(["del", "s", "strike"]): tag.decompose()
-    for tag in soup.find_all(class_=re.compile(r"old|cancel|strikethrough", re.I)): tag.decompose()
+    # Get all raw text from the page
+    text = soup.get_text(separator=" ", strip=True).upper()
     
-    for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
-        txt = el.get_text(separator=" ", strip=True).upper()
-        txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
-        nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
-        if nums:
-            return min(nums) 
-            
-    for tag in ["h6", "h5", "h4", "h3", "span"]:
-        for el in soup.find_all(tag):
-            txt = el.get_text(separator=" ", strip=True).upper()
-            if "₹" in txt or "RS" in txt:
-                txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
-                nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
-                if nums:
-                    return min(nums)
+    # Find every single number directly following a currency symbol
+    matches = re.findall(r'(?:[₹$€£]|RS\.?|INR)\s*([\d,]+)', text)
+    
+    valid_prices = []
+    for m in matches:
+        clean_num = m.replace(",", "").strip()
+        if clean_num.isdigit():
+            val = int(clean_num)
+            # Filter out tiny random numbers or percentages
+            if val > 100: 
+                valid_prices.append(val)
+    
+    # By picking the minimum, it automatically grabs the selling price and ignores the higher MRP
+    if valid_prices:
+        return min(valid_prices)
+        
     return 0
 
 def run_sync():
@@ -112,7 +113,6 @@ def run_sync():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
-        # Keep media blocked to save time, but allow the main product images to render
         page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["font", "media"] else route.continue_())
 
         for store in vendor_list:
@@ -152,6 +152,10 @@ def run_sync():
             for prod_url in seen_urls:
                 try:
                     page.goto(prod_url, timeout=15000, wait_until="load")
+                    
+                    # THE FIX: Mandatory 2-second pause to let the Cartpe Javascript render the price
+                    page.wait_for_timeout(2000) 
+                    
                     p_soup = BeautifulSoup(page.content(), "html.parser")
 
                     title = clean_vendor_codes(p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown")
@@ -159,13 +163,9 @@ def run_sync():
                     category = classify_product(title, prod_url)
                     sizes = extract_sizes(p_soup, p_soup.get_text())
 
-                    # THE FIX: Reverted to the original working image logic, upgraded with lazy-load checks
                     images = []
                     for img in p_soup.find_all("img"):
-                        # Check data-src first (lazy load), then src
                         src = img.get("data-src") or img.get("data-original") or img.get("src") or ""
-                        
-                        # Only grab valid product images, exactly like the original code did
                         if re.search(r"gallery_(md|lg|sm)|uploads", src, re.I):
                             clean_src = src.replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg")
                             if not clean_src.startswith("http"):
