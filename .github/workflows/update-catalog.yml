@@ -1,15 +1,15 @@
-name: Cloud Scraper Engine
+name: Reseller Catalog Sync
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours
-  workflow_dispatch:
+    - cron: '0 */6 * * *'  # Runs every 6 hours automatically
+  workflow_dispatch:       # Adds a "Run workflow" button in GitHub to trigger manually
 
 jobs:
-  scrape-catalog:
+  scrape:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -17,14 +17,13 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           pip install playwright beautifulsoup4 supabase
           playwright install chromium
 
-      - name: Run Incremental Sync
+      - name: Run Scraper Engine
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          python scraper.py
+        run: python scraper.py
