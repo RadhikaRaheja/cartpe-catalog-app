@@ -64,25 +64,15 @@ def extract_sizes(soup, text_content):
     
     return sorted(list(sizes), key=sort_key)
 
-def extract_clean_price(soup):
-    for tag in soup.find_all(["del", "s", "strike"]): tag.decompose()
-    for tag in soup.find_all(class_=re.compile(r"old|cancel|strikethrough", re.I)): tag.decompose()
-    
-    for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
-        txt = el.get_text(separator=" ", strip=True).upper()
-        txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
-        nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
-        if nums:
-            return min(nums) 
-            
-    for tag in ["h6", "h5", "h4", "h3", "span"]:
-        for el in soup.find_all(tag):
-            txt = el.get_text(separator=" ", strip=True).upper()
-            if "₹" in txt or "RS" in txt:
-                txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
-                nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
-                if nums:
-                    return min(nums)
+def extract_clean_price(text_content):
+    matches = re.findall(r'(?:₹|RS\.?|INR)\s*([\d,]+)', text_content, re.IGNORECASE)
+    nums = []
+    for m in matches:
+        clean = m.replace(",", "").strip()
+        if clean.isdigit() and int(clean) > 50:
+            nums.append(int(clean))
+    if nums:
+        return min(nums)
     return 0
 
 def run_sync():
@@ -133,18 +123,17 @@ def run_sync():
                     page.goto(cat_url, timeout=20000, wait_until="domcontentloaded")
                     for _ in range(sync_limit):
                         page.keyboard.press("End")
-                        time.sleep(0.5)
+                        time.sleep(1) # Increased scroll wait to grab more articles
                         try:
                             btn = page.get_by_text("View More", exact=False)
                             if btn.is_visible():
                                 btn.click()
-                                time.sleep(0.8)
+                                time.sleep(1)
                             else: break
                         except: break
                     
                     for a in BeautifulSoup(page.content(), "html.parser").find_all("a", href=re.compile(r"-npi\d+-")):
                         raw_href = a["href"].strip()
-                        # Blocks WhatsApp URLs to prevent GitHub timeouts
                         if "whatsapp" in raw_href.lower() or "api.whatsapp" in raw_href.lower():
                             continue
                         seen_urls.add(raw_href if raw_href.startswith("http") else base_url + raw_href)
@@ -154,15 +143,25 @@ def run_sync():
 
             for prod_url in seen_urls:
                 try:
-                    page.goto(prod_url, timeout=12000, wait_until="domcontentloaded")
+                    page.goto(prod_url, timeout=15000, wait_until="domcontentloaded")
+                    
+                    # Pause to allow Javascript to inject Cartpe prices and sizes
+                    page.wait_for_timeout(1500)
+                    
                     p_soup = BeautifulSoup(page.content(), "html.parser")
+                    
+                    # Grabbing raw text right off the screen to bypass HTML tags completely
+                    try:
+                        raw_text = page.inner_text("body", timeout=2000)
+                    except:
+                        raw_text = p_soup.get_text(separator=" ")
 
                     title = clean_vendor_codes(p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown")
-                    base_price = extract_clean_price(p_soup)
+                    base_price = extract_clean_price(raw_text)
                     category = classify_product(title, prod_url)
-                    sizes = extract_sizes(p_soup, p_soup.get_text())
+                    sizes = extract_sizes(p_soup, raw_text)
 
-                    # EXACT ORIGINAL IMAGE LOGIC
+                    # ORIGINAL WORKING IMAGE LOGIC
                     images = []
                     for img in (p_soup.find("div", {"role": "main"}) or p_soup).find_all("img", src=re.compile(r"gallery_(md|lg)")):
                         images.append(img["src"].replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg"))
@@ -171,9 +170,12 @@ def run_sync():
 
                     if images:
                         print(f"✅ Extracted: ₹{base_price} | {title[:40]}...") 
-                        payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(), "images": list(set(images)), "video": video_url, "sizes": sizes, "url": prod_url}
+                        payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in raw_text.upper(), "images": list(set(images)), "video": video_url, "sizes": sizes, "url": prod_url}
+                        
+                        # Upsert will automatically overwrite the 0 prices with real ones
                         supabase.table("products").upsert(payload, on_conflict="url").execute()
-                except: continue
+                except Exception as e: 
+                    continue
         browser.close()
 
 if __name__ == "__main__":
