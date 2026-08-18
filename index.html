@@ -20,32 +20,28 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--bg); color: var(--text); padding-bottom: 4rem; overflow-x: hidden; }
 
-    /* Sticky Navbar */
     header { background: var(--surface-card); padding: 0.9rem 1.2rem; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); }
     .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; max-width: 1400px; margin-inline: auto; }
-    .header-top h1 { font-size: 1.3rem; font-weight: 900; letter-spacing: -0.5px; }
+    .header-top h1 { font-size: 1.3rem; font-weight: 900; }
     .btn-add-store { background: #282828; color: #fff; border: 1px solid #444; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
     
     .search-row { max-width: 1400px; margin-inline: auto; }
-    .search-row input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: #fff; padding: 0.75rem 1rem; font-size: 0.95rem; }
+    /* Font size strictly 16px to prevent iOS auto-zoom */
+    .search-row input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: #fff; padding: 0.75rem 1rem; font-size: 16px; }
 
-    /* Filters Layout */
     .filter-wrapper { max-width: 1400px; margin-inline: auto; padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.6rem; }
-    .filter-row { display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; gap: 0.4rem; }
+    .filter-row { display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; gap: 0.4rem; -webkit-overflow-scrolling: touch; }
     .filter-row::-webkit-scrollbar { display: none; }
     .filter-label { font-size: 0.75rem; color: var(--muted); font-weight: 800; text-transform: uppercase; min-width: 65px; }
     .chip { background: var(--surface); border: 1px solid var(--border); color: #bbb; padding: 0.45rem 0.9rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
     .chip.active { background: var(--primary); color: #000; border-color: var(--primary); }
 
-    .control-bar { max-width: 1400px; margin-inline: auto; display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--muted); }
-    .sort-select { background: var(--surface); color: #fff; border: 1px solid var(--border); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.85rem; }
+    .control-bar { max-width: 1400px; margin-inline: auto; display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1.2rem; }
+    .sort-select { background: var(--surface); color: #fff; border: 1px solid var(--border); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 16px; }
 
-    /* Responsive Grid */
     .grid { max-width: 1400px; margin-inline: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem; padding: 1.2rem; }
     .card { background: var(--surface); border-radius: 14px; overflow: hidden; border: 1px solid var(--border); display: flex; flex-direction: column; }
-    
-    /* Clean Media Carousel without ugly system scrollbars */
-    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 280px; background: #000; scrollbar-width: none; }
+    .media-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 280px; background: #000; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
     .media-scroller::-webkit-scrollbar { display: none; }
     .media-scroller img { width: 100%; height: 280px; object-fit: cover; scroll-snap-align: start; flex-shrink: 0; }
     
@@ -64,23 +60,26 @@
     .out-of-stock { color: #ff4444; }
 
     .btn-action { background: var(--primary); color: #000; border: none; font-weight: 800; padding: 0.8rem; border-radius: 10px; cursor: pointer; margin-top: auto; font-size: 0.9rem; }
+    
+    .load-more-btn { display: block; width: calc(100% - 2.4rem); max-width: 400px; margin: 1rem auto 2rem; padding: 1rem; background: #282828; color: #fff; border: 1px solid #444; border-radius: 10px; font-weight: 800; cursor: pointer; }
 
-    /* Modal / Bottom Sheet */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
-    .modal { background: #1c1c1c; width: 100%; max-width: 520px; border-radius: 18px; padding: 1.4rem; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.85rem; scrollbar-width: none; }
-    .modal::-webkit-scrollbar { display: none; }
+    /* iPhone Optimized Modal Sheet */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: flex-end; justify-content: center; }
+    .modal { background: #1c1c1c; width: 100%; max-width: 600px; border-radius: 18px 18px 0 0; padding: 1.4rem; max-height: 90vh; overflow-y: auto; border-top: 1px solid #333; display: flex; flex-direction: column; gap: 0.85rem; -webkit-overflow-scrolling: touch; }
     
     .quick-margin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
-    .quick-margin-grid button { background: #262626; color: #fff; border: 1px solid #3c3c3c; padding: 0.55rem; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
-    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 1.05rem; font-weight: 800; width: 100%; }
-    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 0.85rem; height: 130px; resize: none; width: 100%; line-height: 1.4; }
+    .quick-margin-grid button { background: #262626; color: #fff; border: 1px solid #3c3c3c; padding: 0.6rem; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+    
+    /* 16px mandatory to stop iOS auto-zoom on inputs */
+    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 16px; font-weight: 800; width: 100%; }
+    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 16px; height: 160px; resize: none; width: 100%; line-height: 1.4; }
     
     .staged-actions { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.3rem; }
-    .btn-stage { padding: 0.85rem; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; font-size: 0.9rem; text-align: center; }
+    .btn-stage { padding: 0.9rem; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; font-size: 16px; text-align: center; }
     .btn-stage-1 { background: #2c3e50; color: #fff; }
     .btn-stage-2 { background: var(--accent-blue); color: #fff; }
     .btn-stage-3 { background: var(--primary); color: #000; }
-    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.5rem; cursor: pointer; font-weight: 700; }
+    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.8rem; cursor: pointer; font-weight: 700; font-size: 16px; margin-bottom: 20px;}
   </style>
 </head>
 <body>
@@ -114,8 +113,8 @@
   </div>
 
   <div class="control-bar">
-    <span id="productCount">Loading inventory...</span>
-    <select class="sort-select" id="sortSelect" onchange="fetchProducts()">
+    <span id="productCount" style="font-weight: bold;">Loading inventory...</span>
+    <select class="sort-select" id="sortSelect" onchange="resetAndFetch()">
       <option value="newest">Newest First</option>
       <option value="price_low">Price: Low to High</option>
       <option value="price_high">Price: High to Low</option>
@@ -123,14 +122,14 @@
   </div>
 
   <div class="grid" id="productGrid"></div>
+  <button id="loadMoreBtn" class="load-more-btn" style="display:none;" onclick="loadMore()">Load More Items</button>
 
   <!-- Share Modal -->
   <div class="modal-overlay" id="shareModal" onclick="if(event.target === this) closeModal()">
     <div class="modal">
       <h3 id="modalTitle" style="color: var(--primary); font-size: 1.05rem;"></h3>
-      <div style="font-size: 0.85rem; color: var(--muted);">Original Listing Price: ₹<span id="modalBasePrice">0</span></div>
+      <div style="font-size: 0.85rem; color: var(--muted);">Listing Price: ₹<span id="modalBasePrice">0</span></div>
 
-      <!-- Quick Margin Buttons -->
       <div class="quick-margin-grid">
         <button onclick="addMargin(100)">+₹100</button>
         <button onclick="addMargin(250)">+₹250</button>
@@ -145,34 +144,31 @@
       <input type="number" id="finalPriceInput" class="price-input" oninput="updateCaption()" placeholder="Final Selling Price (₹)"/>
       <textarea id="customCaption" class="caption-box"></textarea>
 
-      <!-- Video Preview -->
-      <video id="modalVideo" style="display:none; width: 100%; border-radius: 10px; max-height: 200px; background: #000;" controls></video>
+      <video id="modalVideo" style="display:none; width: 100%; border-radius: 10px; max-height: 200px; background: #000;" controls playsinline></video>
 
       <div class="staged-actions">
-        <button class="btn-stage btn-stage-1" id="btnShareImages" onclick="shareOrDownloadImages()">📸 Step 1: Download / Share HD Images</button>
-        <button class="btn-stage btn-stage-2" id="btnShareVideo" style="display:none;" onclick="directShareOrDownloadVideo()">🎥 Step 2: Direct Share / Download HD Video</button>
-        <button class="btn-stage btn-stage-3" onclick="copyCaptionAndLaunchWA()">📋 Step 3: Copy Caption & Open WhatsApp</button>
-        <button class="btn-close" onclick="closeModal()">Close</button>
+        <button class="btn-stage btn-stage-1" onclick="shareOrDownloadImages()">📸 Step 1: Download / Share Images</button>
+        <button class="btn-stage btn-stage-2" id="btnShareVideo" style="display:none;" onclick="directShareOrDownloadVideo()">🎥 Step 2: Share / Download Video</button>
+        <button class="btn-stage btn-stage-3" onclick="copyCaptionAndLaunchWA()">📋 Step 3: Copy Text & Open WhatsApp</button>
+        <button class="btn-close" onclick="closeModal()">Dismiss</button>
       </div>
     </div>
   </div>
 
   <script>
-    // ==========================================
-    // SUPABASE CREDENTIALS
-    // ==========================================
-    const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxkemp4d2FrcmRqc3pua3BlcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODc2MjUsImV4cCI6MjEwMjU2MzYyNX0.CkIKcGWlBdt_ds7cEJ6LNNkcBbpaj1fnQcaa-qHhrTk";
-    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+   const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co"; const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxkemp4d2FrcmRqc3pua3BlcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODc2MjUsImV4cCI6MjEwMjU2MzYyNX0.CkIKcGWlBdt_ds7cEJ6LNNkcBbpaj1fnQcaa-qHhrTk"; const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let allProducts = [];
+    let displayedProducts = [];
     let activeProduct = null;
     let selectedVendor = 'all';
     let selectedCategory = 'all';
+    let currentPage = 0;
+    const PAGE_SIZE = 40;
 
     async function init() {
       await loadVendors();
-      await fetchProducts();
+      await resetAndFetch();
     }
 
     async function loadVendors() {
@@ -187,6 +183,13 @@
       });
     }
 
+    async function resetAndFetch() {
+      currentPage = 0;
+      allProducts = [];
+      document.getElementById('productGrid').innerHTML = '';
+      await fetchProducts();
+    }
+
     async function fetchProducts() {
       const sort = document.getElementById('sortSelect').value;
       let query = client.from('products').select('*');
@@ -198,17 +201,32 @@
       if (sort === 'price_low') query = query.order('base_price', { ascending: true });
       if (sort === 'price_high') query = query.order('base_price', { ascending: false });
 
-      const { data } = await query.limit(250);
-      if (data) {
-        allProducts = data;
-        renderGrid(data);
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, count } = await query.range(from, to);
+      
+      if (data && data.length > 0) {
+        allProducts = [...allProducts, ...data];
+        displayedProducts = allProducts;
+        renderGrid(data, false);
+        currentPage++;
+        document.getElementById('loadMoreBtn').style.display = 'block';
+      } else {
+        document.getElementById('loadMoreBtn').style.display = 'none';
       }
+      document.getElementById('productCount').innerText = `${allProducts.length} items loaded`;
     }
 
-    function renderGrid(items) {
-      document.getElementById('productCount').innerText = `${items.length} items loaded`;
+    function loadMore() {
+      fetchProducts();
+    }
+
+    function renderGrid(items, clear = true) {
       const grid = document.getElementById('productGrid');
-      grid.innerHTML = items.map(p => `
+      if (clear) grid.innerHTML = '';
+      
+      const html = items.map(p => `
         <div class="card" style="opacity: ${p.in_stock ? 1 : 0.55}">
           <div class="media-scroller">
             ${(p.images || []).map(img => `<img src="${img}" loading="lazy" />`).join('')}
@@ -227,25 +245,38 @@
                 ${p.in_stock ? 'IN STOCK' : 'OUT OF STOCK'}
               </span>
             </div>
-            <button class="btn-action" onclick="openShareModal('${p.id}')">Access Media & Share</button>
+            <button class="btn-action" onclick="openShareModal('${p.id}')">Edit & Share</button>
           </div>
         </div>
       `).join('');
+      
+      grid.insertAdjacentHTML('beforeend', html);
     }
 
     function generateCustomerTemplate(p, price) {
       const cat = p.category;
-      if (cat === 'perfume') {
-        return `*${p.title}* 🌸✨\n\n• Premium Long Lasting Fragrance\n• 100% Sealed Pack with Barcode & Batch Code\n• Perfect for Gifting\n\nPrice: ₹${price} only\nShipping: Free Included 📦`;
-      } else if (cat === 'belt') {
-        return `*${p.title}* 👔\n\n• Premium Quality Reversible Leather\n• Includes Brand Box, Card, Dust Bag & Tags\n\nPrice: ₹${price}/-\nFree Shipping Included 🚚`;
-      } else if (cat === 'footwear') {
-        const sizeStr = (p.sizes && p.sizes.length) ? p.sizes.join('-') : 'UK 6 to 10 (Confirm in DM)';
+      
+      if (cat === 'footwear') {
+        let sizeStr = "Please confirm availability in DM";
+        if (p.sizes && p.sizes.length) {
+          // Dynamic text formatting based on size type detected
+          if (p.sizes[0].includes("UK") || p.sizes[0].includes("US") || p.sizes.length < 4) {
+             sizeStr = p.sizes.join(', ');
+          } else {
+             sizeStr = p.sizes.join('-');
+          }
+        }
         return `*${p.title}* ❤️\n\nMASTER PC WITH PREMIUM QUALITY 🔥\nSIZES :- ${sizeStr}\nComes With Original Box, Carry Bag & All accessories ✅\n\nPrice: ₹${price}/- Free Shipping Included 😍`;
+      }
+      
+      if (cat === 'perfume') {
+        return `*${p.title}* 🌸✨\n\n• Premium Long Lasting Fragrance\n• 100% Sealed Pack with Barcode\n• Perfect for Gifting\n\nPrice: ₹${price} only\nShipping: Free Included 📦`;
+      } else if (cat === 'belt') {
+        return `*${p.title}* 👔\n\n• Premium Quality Leather\n• Includes Brand Box, Card, Dust Bag\n\nPrice: ₹${price}/-\nFree Shipping Included 🚚`;
       } else if (cat === 'eyewear') {
         return `*${p.title}* 🕶️\n\n• OPTICAL FRAME / WAYFARER\n• Unisex Premium Edition\n• With Original Case & Cloth\n\nPrice: ₹${price}/- Free Shipping 🚚`;
       } else if (cat === 'watch') {
-        return `*${p.title}* ⌚✨\n\n• Premium Chronograph / Master Edition\n• Complete With Box, Manual & Tags\n\nPrice: ₹${price}/- Free Shipping Included`;
+        return `*${p.title}* ⌚✨\n\n• Premium Master Edition\n• Complete With Box, Manual & Tags\n\nPrice: ₹${price}/- Free Shipping Included`;
       }
       return `*${p.title}* 😻💯\n\n• Premium Quality with Inner Branding\n• Includes: Original Brand Box, Dust Bag & Tags\n\nPrice: ₹${price}/- Free Shipping 🚚`;
     }
@@ -268,6 +299,9 @@
         shareVidBtn.style.display = 'none';
       }
       document.getElementById('shareModal').style.display = 'flex';
+      
+      // Prevents body scrolling behind modal on iPhone
+      document.body.style.overflow = 'hidden'; 
     }
 
     function updateCaption() {
@@ -287,7 +321,6 @@
 
     async function shareOrDownloadImages() {
       if (!activeProduct.images || !activeProduct.images.length) return;
-      
       if (navigator.share && navigator.canShare) {
         try {
           const files = [];
@@ -302,7 +335,6 @@
           }
         } catch(e) {}
       }
-
       activeProduct.images.forEach((imgUrl, idx) => {
         const a = document.createElement('a');
         a.href = imgUrl;
@@ -316,8 +348,6 @@
 
     async function directShareOrDownloadVideo() {
       if (!activeProduct.video) return;
-      
-      // Direct Web Share for Video if supported (e.g. mobile Safari/Chrome)
       if (navigator.share && navigator.canShare) {
         try {
           const res = await fetch(activeProduct.video);
@@ -329,8 +359,6 @@
           }
         } catch(e) {}
       }
-
-      // Fallback: Direct Download
       const a = document.createElement('a');
       a.href = activeProduct.video;
       a.download = 'product_video.mp4';
@@ -361,24 +389,31 @@
       selectedVendor = v;
       document.querySelectorAll('#vendorFilterRow .chip').forEach(c => c.classList.remove('active'));
       el.classList.add('active');
-      fetchProducts();
+      resetAndFetch();
     }
 
     function setCategory(c, el) {
       selectedCategory = c;
       el.parentElement.querySelectorAll('.chip').forEach(chip => chip.classList.remove('active'));
       el.classList.add('active');
-      fetchProducts();
+      resetAndFetch();
     }
 
     function handleSearch() {
       const q = document.getElementById('searchInput').value.toLowerCase();
+      if (!q) {
+        renderGrid(allProducts, true);
+        document.getElementById('loadMoreBtn').style.display = 'block';
+        return;
+      }
+      document.getElementById('loadMoreBtn').style.display = 'none';
       const filtered = allProducts.filter(p => p.title.toLowerCase().includes(q) || p.vendor.toLowerCase().includes(q));
-      renderGrid(filtered);
+      renderGrid(filtered, true);
     }
 
     function closeModal() {
       document.getElementById('shareModal').style.display = 'none';
+      document.body.style.overflow = 'auto'; // Restore scroll
       const videoEl = document.getElementById('modalVideo');
       videoEl.pause();
       videoEl.src = '';
