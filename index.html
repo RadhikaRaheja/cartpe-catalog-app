@@ -85,12 +85,16 @@
     .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.8rem; cursor: pointer; font-weight: 700; font-size: 16px; margin-top: auto;}
 
     /* Admin Panel Styles */
-    .admin-modal { max-width: 400px; text-align: center; }
-    .admin-modal h3 { color: var(--danger); margin-bottom: 1rem; font-size: 1.4rem; }
+    .admin-modal { max-width: 450px; text-align: left; }
+    .admin-modal h3 { color: var(--primary); margin-bottom: 1rem; font-size: 1.4rem; text-align: center; }
     .admin-input-group { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; margin-bottom: 1.5rem; }
     .admin-input-group label { font-size: 0.85rem; font-weight: 700; color: var(--muted); }
     .admin-btn-save { background: var(--primary); color: #000; border: none; padding: 0.8rem; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; margin-bottom: 1rem; font-size: 16px;}
-    .admin-btn-wipe { background: var(--danger); color: #fff; border: none; padding: 0.8rem; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; font-size: 16px; }
+    .admin-btn-wipe { background: var(--danger); color: #fff; border: none; padding: 0.8rem; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; font-size: 16px; margin-bottom: 1rem;}
+    
+    .vendor-list-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 0.4rem; border: 1px solid #333; }
+    .vendor-list-item input { width: 50px; padding: 0.3rem; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px; text-align: center; }
+    .vendor-list-item button { background: var(--danger); color: #fff; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
 
     @media (max-width: 768px) {
       .modal-overlay { align-items: flex-end; padding: 0; }
@@ -185,10 +189,10 @@
   <!-- SECRET ADMIN MODAL -->
   <div class="modal-overlay" id="adminModal" onclick="if(event.target === this) closeAdminModal()">
     <div class="modal admin-modal">
-      <h3>⚠️ Hidden Admin Control</h3>
+      <h3>⚙️ Admin Dashboard</h3>
       
       <div class="admin-input-group">
-        <label>Scraper Deep Sync Limit (No. of Scrolls)</label>
+        <label>Scraper Deep Sync Limit (Scrolls per page)</label>
         <input type="number" id="syncLimitInput" class="price-input" placeholder="e.g. 6 or 100" />
       </div>
       <button class="admin-btn-save" onclick="saveSyncLimit()">Save Limit Configuration</button>
@@ -196,18 +200,22 @@
       <div style="height: 1px; background: #333; margin: 1rem 0;"></div>
 
       <div class="admin-input-group">
-        <label style="color: var(--danger);">Danger Zone</label>
-        <p style="font-size: 0.8rem; color: #888; margin-top: 4px;">Deletes all products instantly. The scraper will need to run again to rebuild the catalog.</p>
+        <label>Vendor Priority & Management</label>
+        <div id="adminVendorList" style="max-height: 200px; overflow-y: auto; margin-top: 0.5rem;"></div>
       </div>
-      <button class="admin-btn-wipe" onclick="wipeCatalog()">🔥 WIPE CATALOG COMPLETELY</button>
+      <button class="admin-btn-save" style="background: #333; color: #fff;" onclick="saveVendorOrders()">Save Sort Orders</button>
+
+      <div style="height: 1px; background: #333; margin: 1rem 0;"></div>
+
+      <button class="admin-btn-wipe" onclick="wipeCatalog()">🔥 WIPE PRODUCT CATALOG COMPLETELY</button>
       
-      <button class="btn-close" onclick="closeAdminModal()">Close</button>
+      <button class="btn-close" style="text-align: center; width: 100%;" onclick="closeAdminModal()">Close Dashboard</button>
     </div>
   </div>
 
   <script>
     // ENSURE YOUR KEYS ARE PASTED HERE
-    const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co";
+     const SUPABASE_URL = "https://ldzjxwakrdjsznkpeqwh.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxkemp4d2FrcmRqc3pua3BlcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODc2MjUsImV4cCI6MjEwMjU2MzYyNX0.CkIKcGWlBdt_ds7cEJ6LNNkcBbpaj1fnQcaa-qHhrTk";
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -242,9 +250,29 @@
 
     async function openAdminModal() {
       document.getElementById('adminModal').style.display = 'flex';
-      const { data } = await client.from('settings').select('sync_limit').eq('id', 1).single();
-      if (data) {
-        document.getElementById('syncLimitInput').value = data.sync_limit;
+      
+      // Load Sync Limit
+      const limitRes = await client.from('settings').select('sync_limit').eq('id', 1).single();
+      if (limitRes.data) {
+        document.getElementById('syncLimitInput').value = limitRes.data.sync_limit;
+      }
+
+      // Load Vendors for Management
+      const vendorRes = await client.from('vendors').select('*').order('sort_order', { ascending: true });
+      const vendorListDiv = document.getElementById('adminVendorList');
+      vendorListDiv.innerHTML = '';
+      if (vendorRes.data) {
+        vendorRes.data.forEach(v => {
+          vendorListDiv.innerHTML += `
+            <div class="vendor-list-item" id="admin-vendor-${v.id}">
+              <div style="font-size: 0.85rem; font-weight: bold;">${v.name}</div>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="number" class="vendor-sort-input" data-id="${v.id}" value="${v.sort_order || 99}" />
+                <button onclick="deleteVendor('${v.id}')">X</button>
+              </div>
+            </div>
+          `;
+        });
       }
     }
 
@@ -257,14 +285,29 @@
       if (val > 0) {
         await client.from('settings').update({ sync_limit: val }).eq('id', 1);
         alert(`Deep Sync Limit saved as ${val}. Scraper will use this on its next run.`);
-        closeAdminModal();
+      }
+    }
+
+    async function saveVendorOrders() {
+      const inputs = document.querySelectorAll('.vendor-sort-input');
+      for (const input of inputs) {
+        const id = input.getAttribute('data-id');
+        const sortVal = parseInt(input.value) || 99;
+        await client.from('vendors').update({ sort_order: sortVal }).eq('id', id);
+      }
+      alert("Vendor priorities saved! Refresh to see changes in your filter bar.");
+    }
+
+    async function deleteVendor(id) {
+      if(confirm("Are you sure you want to remove this vendor? The scraper will no longer check it.")) {
+        await client.from('vendors').delete().eq('id', id);
+        document.getElementById(`admin-vendor-${id}`).remove();
       }
     }
 
     async function wipeCatalog() {
       const confirmWipe = confirm("Are you absolute sure? This will delete all products from your database immediately.");
       if (confirmWipe) {
-        // Deletes all rows where ID is not null (which is all of them)
         const { error } = await client.from('products').delete().not('id', 'is', null);
         if (error) {
           alert("Error wiping catalog: " + error.message);
@@ -277,7 +320,7 @@
     // ------------------------------
 
     async function loadVendors() {
-      const { data } = await client.from('vendors').select('*').eq('active', true);
+      const { data } = await client.from('vendors').select('*').eq('active', true).order('sort_order', { ascending: true });
       const row = document.getElementById('vendorFilterRow');
       (data || []).forEach(v => {
         const chip = document.createElement('div');
@@ -364,25 +407,25 @@
       if (cat === 'footwear') {
         let sizeStr = "Please confirm availability in DM";
         if (p.sizes && p.sizes.length) {
-          if (p.sizes[0].includes("UK") || p.sizes[0].includes("US") || p.sizes[0] < 20) {
+          if (p.sizes[0].includes("UK") || p.sizes[0].includes("US") || parseInt(p.sizes[0]) < 20) {
              sizeStr = p.sizes.join(', ');
           } else {
              sizeStr = p.sizes.join('-');
           }
         }
-        return `*${p.title}* ❤️\n\nMASTER PC WITH PREMIUM QUALITY 🔥\nSIZES :- ${sizeStr}\nComes With Original Box, Carry Bag & All accessories ✅\n\nPrice: ₹${price}/- Free Shipping Included 😍`;
+        return `*${p.title}* ❤️\n\nMASTER PC WITH PREMIUM QUALITY 🔥\nSIZES :- ${sizeStr}\nComes With Original Box, Carry Bag & All accessories ✅\n\nPrice: ₹${price}/-\nShipping: Extra 🚚`;
       }
       
       if (cat === 'perfume') {
-        return `*${p.title}* 🌸✨\n\n• Premium Long Lasting Fragrance\n• 100% Sealed Pack with Barcode\n• Perfect for Gifting\n\nPrice: ₹${price} only\nShipping: Free Included 📦`;
+        return `*${p.title}* 🌸✨\n\n• Premium Long Lasting Fragrance\n• 100% Sealed Pack with Barcode\n• Perfect for Gifting\n\nPrice: ₹${price} only\nShipping: Extra 📦`;
       } else if (cat === 'belt') {
-        return `*${p.title}* 👔\n\n• Premium Quality Leather\n• Includes Brand Box, Card, Dust Bag\n\nPrice: ₹${price}/-\nFree Shipping Included 🚚`;
+        return `*${p.title}* 👔\n\n• Premium Quality Leather\n• Includes Brand Box, Card, Dust Bag\n\nPrice: ₹${price}/-\nShipping: Extra 🚚`;
       } else if (cat === 'eyewear') {
-        return `*${p.title}* 🕶️\n\n• OPTICAL FRAME / WAYFARER\n• Unisex Premium Edition\n• With Original Case & Cloth\n\nPrice: ₹${price}/- Free Shipping 🚚`;
+        return `*${p.title}* 🕶️\n\n• OPTICAL FRAME / WAYFARER\n• Unisex Premium Edition\n• With Original Case & Cloth\n\nPrice: ₹${price}/-\nShipping: Extra 🚚`;
       } else if (cat === 'watch') {
-        return `*${p.title}* ⌚✨\n\n• Premium Master Edition\n• Complete With Box, Manual & Tags\n\nPrice: ₹${price}/- Free Shipping Included`;
+        return `*${p.title}* ⌚✨\n\n• Premium Master Edition\n• Complete With Box, Manual & Tags\n\nPrice: ₹${price}/-\nShipping: Extra 📦`;
       }
-      return `*${p.title}* 😻💯\n\n• Premium Quality with Inner Branding\n• Includes: Original Brand Box, Dust Bag & Tags\n\nPrice: ₹${price}/- Free Shipping 🚚`;
+      return `*${p.title}* 😻💯\n\n• Premium Quality with Inner Branding\n• Includes: Original Brand Box, Dust Bag & Tags\n\nPrice: ₹${price}/-\nShipping: Extra 🚚`;
     }
 
     function openShareModal(id) {
