@@ -65,25 +65,24 @@ def extract_sizes(soup, text_content):
     return sorted(list(sizes), key=sort_key)
 
 def extract_clean_price(soup):
-    # Get all raw text from the page
-    text = soup.get_text(separator=" ", strip=True).upper()
+    for tag in soup.find_all(["del", "s", "strike"]): tag.decompose()
+    for tag in soup.find_all(class_=re.compile(r"old|cancel|strikethrough", re.I)): tag.decompose()
     
-    # Find every single number directly following a currency symbol
-    matches = re.findall(r'(?:[₹$€£]|RS\.?|INR)\s*([\d,]+)', text)
-    
-    valid_prices = []
-    for m in matches:
-        clean_num = m.replace(",", "").strip()
-        if clean_num.isdigit():
-            val = int(clean_num)
-            # Filter out tiny random numbers or percentages
-            if val > 100: 
-                valid_prices.append(val)
-    
-    # By picking the minimum, it automatically grabs the selling price and ignores the higher MRP
-    if valid_prices:
-        return min(valid_prices)
-        
+    for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
+        txt = el.get_text(separator=" ", strip=True).upper()
+        txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
+        nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
+        if nums:
+            return min(nums) 
+            
+    for tag in ["h6", "h5", "h4", "h3", "span"]:
+        for el in soup.find_all(tag):
+            txt = el.get_text(separator=" ", strip=True).upper()
+            if "₹" in txt or "RS" in txt:
+                txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
+                nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
+                if nums:
+                    return min(nums)
     return 0
 
 def run_sync():
@@ -113,7 +112,7 @@ def run_sync():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
-        page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["font", "media"] else route.continue_())
+        page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "media"] else route.continue_())
 
         for store in vendor_list:
             store_name = store["name"]
@@ -139,23 +138,23 @@ def run_sync():
                             btn = page.get_by_text("View More", exact=False)
                             if btn.is_visible():
                                 btn.click()
-                                time.sleep(1)
+                                time.sleep(0.8)
                             else: break
                         except: break
                     
                     for a in BeautifulSoup(page.content(), "html.parser").find_all("a", href=re.compile(r"-npi\d+-")):
-                        seen_urls.add(a["href"] if a["href"].startswith("http") else base_url + a["href"])
+                        raw_href = a["href"].strip()
+                        # Blocks WhatsApp URLs to prevent GitHub timeouts
+                        if "whatsapp" in raw_href.lower() or "api.whatsapp" in raw_href.lower():
+                            continue
+                        seen_urls.add(raw_href if raw_href.startswith("http") else base_url + raw_href)
                 except: continue
 
             print(f"Discovered {len(seen_urls)} products for {store_name}. Extracting details...")
 
             for prod_url in seen_urls:
                 try:
-                    page.goto(prod_url, timeout=15000, wait_until="load")
-                    
-                    # THE FIX: Mandatory 2-second pause to let the Cartpe Javascript render the price
-                    page.wait_for_timeout(2000) 
-                    
+                    page.goto(prod_url, timeout=12000, wait_until="domcontentloaded")
                     p_soup = BeautifulSoup(page.content(), "html.parser")
 
                     title = clean_vendor_codes(p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown")
@@ -163,29 +162,18 @@ def run_sync():
                     category = classify_product(title, prod_url)
                     sizes = extract_sizes(p_soup, p_soup.get_text())
 
+                    # EXACT ORIGINAL IMAGE LOGIC
                     images = []
-                    for img in p_soup.find_all("img"):
-                        src = img.get("data-src") or img.get("data-original") or img.get("src") or ""
-                        if re.search(r"gallery_(md|lg|sm)|uploads", src, re.I):
-                            clean_src = src.replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg")
-                            if not clean_src.startswith("http"):
-                                clean_src = base_url + clean_src
-                            images.append(clean_src)
+                    for img in (p_soup.find("div", {"role": "main"}) or p_soup).find_all("img", src=re.compile(r"gallery_(md|lg)")):
+                        images.append(img["src"].replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg"))
 
-                    images = list(set(images))
                     video_url = extract_video_url(p_soup, base_url)
 
-                    if images and base_price > 0:
+                    if images:
                         print(f"✅ Extracted: ₹{base_price} | {title[:40]}...") 
-                        payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(), "images": images, "video": video_url, "sizes": sizes, "url": prod_url}
+                        payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(), "images": list(set(images)), "video": video_url, "sizes": sizes, "url": prod_url}
                         supabase.table("products").upsert(payload, on_conflict="url").execute()
-                    else:
-                        print(f"❌ Skipped (Missing Data): {prod_url} | Price: ₹{base_price} | Images Found: {len(images)}")
-                        
-                except Exception as e: 
-                    print(f"⚠️ Error loading {prod_url}: {e}")
-                    continue
-                    
+                except: continue
         browser.close()
 
 if __name__ == "__main__":
