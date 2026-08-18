@@ -46,23 +46,18 @@ def classify_product(title, url):
 
 def extract_sizes(soup, text_content):
     sizes = set()
-    # 1. Look in variant pills/dropdowns
     for el in soup.find_all(["button", "span", "div", "option", "label"]):
         txt = el.get_text(strip=True).upper()
-        # Match standalone numbers 36-46 (EU) or 5-12 (UK/US) and specific UK/US prefixes
         if re.match(r"^(3[5-9]|4[0-6])$", txt) or re.match(r"^(UK|US|EU)?\s*([5-9]|1[0-2])$", txt):
             sizes.add(txt.replace(" ", ""))
 
-    # 2. Extract from raw description text if pills fail
     if not sizes and text_content:
-        # Look for patterns like "36-37-38-39" or "UK 6,7,8"
         size_str = re.search(r'(?i)(?:sizes?|uk|eu)[\s:-]+([0-9\s,\-/&]+)', text_content)
         if size_str:
             tokens = re.findall(r'\b(3[5-9]|4[0-6]|[5-9]|1[0-2])\b', size_str.group(1))
             for t in tokens:
                 sizes.add(t)
 
-    # Sort numerically (strip letters for sorting logic)
     def sort_key(x):
         nums = re.findall(r'\d+', x)
         return int(nums[0]) if nums else 0
@@ -70,18 +65,15 @@ def extract_sizes(soup, text_content):
     return sorted(list(sizes), key=sort_key)
 
 def extract_clean_price(soup):
-    # Rip out strikethrough prices completely
     for del_tag in soup.find_all(["del", "s", "strike"]):
         del_tag.decompose()
         
-    # Find active price classes
     for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
         txt = el.get_text(strip=True).replace(",", "")
         nums = re.findall(r'\d+', txt)
         if nums and int(nums[0]) > 0:
             return int(nums[0])
             
-    # Fallback to standard headings
     for tag in ["h6", "h5", "h4", "span"]:
         for el in soup.find_all(tag):
             txt = el.get_text(strip=True).replace(",", "")
@@ -97,11 +89,12 @@ def run_sync():
     supabase_url = re.sub(r'/rest/v1/?$', '', supabase_url)
 
     if not supabase_url or not supabase_key:
-        print("Missing Supabase credentials.")
+        print("Missing Supabase credentials. Ensure GitHub Secrets are set.")
         return
 
     supabase: Client = create_client(supabase_url, supabase_key)
     vendor_list = supabase.table("vendors").select("*").eq("active", True).execute().data or []
+    print(f"Loaded {len(vendor_list)} active vendors.")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
