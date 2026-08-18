@@ -10,6 +10,17 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 }
 
+def clean_vendor_codes(text):
+    """Removes vendor codes, SKUs, and trailing tags to prevent Google reverse-search."""
+    if not text:
+        return ""
+    # Strip SKU patterns, item codes, and trailing hashes/numbers
+    text = re.sub(r'(?i)\b(code|sku|art|item\s*no|ref)[:\s#-]*[a-z0-9_-]+', '', text)
+    text = re.sub(r'#[a-zA-Z0-9_-]+', '', text)
+    text = re.sub(r'-\s*[A-Z0-9]{3,}\s*$', '', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip()
+    return text
+
 def clean_video_url(url, base_url):
     if not url or url.strip() in ["#", "/#", "javascript:;", "javascript:void(0)"]:
         return None
@@ -32,30 +43,85 @@ def extract_video_url(soup, base_url):
     return None
 
 def classify_product(title, url):
+    """Strict hierarchical classifier to eliminate mistagged items."""
     text = f"{title} {url}".lower()
-    if any(k in text for k in ["perfume", "parfum", "tester", "edp", "edt", "fragrance", "cologne"]):
-        return "perfume"
-    if any(k in text for k in ["belt", "buckle"]):
-        return "belt"
-    if any(k in text for k in ["glass", "frame", "wayfarer", "sunglass", "eyewear", "optical"]):
-        return "eyewear"
-    if any(k in text for k in ["watch", "chronograph", "dial"]):
-        return "watch"
-    if any(k in text for k in ["shoe", "sneaker", "heel", "sandal", "croc", "flipflop", "boot", "footwear", "slingback"]):
+    
+    # 1. Footwear (highest priority)
+    if any(k in text for k in [
+        "loafer", "shoe", "sneaker", "heel", "sandal", "croc", "flipflop", 
+        "flip flop", "boot", "footwear", "slingback", "slide", "mule", 
+        "birkenstock", "derby", "oxford", "yeezy", "dunk", "jordan", "airforce"
+    ]):
         return "footwear"
-    if any(k in text for k in ["bag", "handbag", "tote", "crossbody", "saddle", "clutch", "purse", "backpack", "wallet"]):
+    
+    # 2. Perfumes
+    if any(k in text for k in ["perfume", "parfum", "tester", "edp", "edt", "fragrance", "cologne", "attar"]):
+        return "perfume"
+        
+    # 3. Eyewear
+    if any(k in text for k in ["sunglass", "glasses", "optical", "frame", "wayfarer", "eyewear", "aviator"]):
+        return "eyewear"
+        
+    # 4. Watches
+    if any(k in text for k in ["watch", "chronograph", "dial", "quartz", "automatic"]):
+        return "watch"
+        
+    # 5. Belts
+    if any(k in text for k in ["belt", "reversible belt", "buckle set", "leather belt"]):
+        return "belt"
+        
+    # 6. Bags
+    if any(k in text for k in ["bag", "handbag", "tote", "crossbody", "saddle", "clutch", "purse", "backpack", "wallet", "sling"]):
         return "bag"
+        
     return "accessories"
 
-def extract_sizes(soup):
+def extract_sizes(soup, text_content):
+    """Extracts sizes from interactive pills, select menus, and description text."""
     sizes = []
-    # Search for size pills or dropdown variants
-    for el in soup.find_all(["button", "span", "div", "option"], class_=re.compile(r"size|variant|attribute", re.I)):
+    
+    # Check interactive DOM elements
+    for el in soup.find_all(["button", "span", "div", "option", "li"], class_=re.compile(r"size|variant|attribute|pill", re.I)):
         txt = el.get_text(strip=True)
-        if re.match(r"^(\d{2}|UK\s*\d+|US\s*\d+|[SMLXL]{1,3})$", txt, re.I):
+        if re.match(r"^(\d{1,2}|UK\s*\d+|US\s*\d+|EU\s*\d+|[SMLXL]{1,3})$", txt, re.I):
             if txt not in sizes:
                 sizes.append(txt)
+
+    # Check text patterns like 'Sizes :- 36-37-38-39-40' or 'UK 6 to 10'
+    if not sizes and text_content:
+        size_match = re.search(r'(?i)(?:sizes?|uk)\s*[:-]?\s*([0-9\s\-,/toUKUS]+)', text_content)
+        if size_match:
+            raw_sizes = size_match.group(1).strip()
+            # Clean up into readable tokens
+            tokens = re.findall(r'\b\d{1,2}\b', raw_sizes)
+            if tokens and len(tokens) >= 2:
+                sizes = tokens[:8]
+                
     return sizes
+
+def extract_clean_price(soup):
+    """Safely extracts the active listing price, discarding strikethrough/MRP tags."""
+    # Remove all strikethrough elements
+    for del_tag in soup.find_all(["del", "s", "strike"]):
+        del_tag.decompose()
+        
+    # Find price in standard Cartpe tags
+    price_candidates = []
+    for el in soup.find_all(["h6", "span", "div", "p"], class_=re.compile(r"price|selling|offer", re.I)):
+        txt = el.get_text(strip=True)
+        nums = re.findall(r'\d+', txt.replace(",", ""))
+        if nums:
+            price_candidates.append(int(nums[0]))
+            
+    # Fallback to general h6
+    if not price_candidates:
+        h6 = soup.find("h6")
+        if h6:
+            nums = re.findall(r'\d+', h6.get_text(strip=True).replace(",", ""))
+            if nums:
+                price_candidates.append(int(nums[0]))
+                
+    return price_candidates[0] if price_candidates else 0
 
 def run_sync():
     supabase_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
@@ -68,7 +134,6 @@ def run_sync():
 
     supabase: Client = create_client(supabase_url, supabase_key)
     
-    # Fetch dynamic vendors from database
     response = supabase.table("vendors").select("*").eq("active", True).execute()
     vendor_list = response.data or []
     print(f"Loaded {len(vendor_list)} active vendors from Supabase.")
@@ -86,7 +151,7 @@ def run_sync():
         for store in vendor_list:
             store_name = store["name"]
             base_url = store["base_url"].rstrip("/")
-            print(f"\n--- Scanning Store: {store_name} ({base_url}) ---")
+            print(f"\nScanning Store: {store_name} ({base_url})")
 
             categories_to_scrape = []
             try:
@@ -108,7 +173,6 @@ def run_sync():
             for cat_url in categories_to_scrape:
                 try:
                     page.goto(cat_url, timeout=20000, wait_until="domcontentloaded")
-                    # Smooth scroll to collect initial articles
                     for _ in range(8):
                         page.keyboard.press("End")
                         time.sleep(0.5)
@@ -131,37 +195,36 @@ def run_sync():
                 except:
                     pass
 
-            print(f"Discovered {len(seen_urls)} product links for {store_name}. Extracting details...")
+            print(f"Found {len(seen_urls)} product links for {store_name}.")
 
             for prod_url in seen_urls:
                 try:
                     page.goto(prod_url, timeout=15000, wait_until="domcontentloaded")
-                    p_soup = BeautifulSoup(page.content(), "html.parser")
+                    page_html = page.content()
+                    p_soup = BeautifulSoup(page_html, "html.parser")
 
-                    title_el = p_soup.find("h1")
-                    title = title_el.get_text(strip=True) if title_el else "Unknown"
+                    raw_title = p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown"
+                    title = clean_vendor_codes(raw_title)
 
-                    price_el = p_soup.find("h6")
-                    price_num = re.sub(r"[^\d]", "", price_el.get_text(strip=True)) if price_el else "0"
+                    base_price = extract_clean_price(p_soup)
+                    category = classify_product(title, prod_url)
+                    sizes = extract_sizes(p_soup, p_soup.get_text())
 
                     images = []
                     main_area = p_soup.find("div", {"role": "main"}) or p_soup
                     for img in main_area.find_all("img", src=re.compile(r"gallery_(md|lg)")):
-                        # Upgrade directly to max resolution
                         hq_img = img["src"].replace("gallery_md", "gallery_lg").replace("gallery_sm", "gallery_lg")
                         if hq_img not in images:
                             images.append(hq_img)
 
                     video_url = extract_video_url(p_soup, base_url)
-                    category = classify_product(title, prod_url)
-                    sizes = extract_sizes(p_soup)
 
                     if images and title != "Unknown":
                         payload = {
                             "vendor": store_name,
                             "category": category,
                             "title": title,
-                            "base_price": int(price_num) if price_num else 0,
+                            "base_price": base_price,
                             "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(),
                             "images": images,
                             "video": video_url,
@@ -173,7 +236,7 @@ def run_sync():
                     pass
 
         browser.close()
-    print("\nCatalog sync completed.")
+    print("Sync completed successfully.")
 
 if __name__ == "__main__":
     run_sync()
