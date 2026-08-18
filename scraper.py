@@ -7,7 +7,7 @@ from playwright.sync_api import sync_playwright
 from supabase import create_client, Client
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 }
 
 def clean_vendor_codes(text):
@@ -65,24 +65,27 @@ def extract_sizes(soup, text_content):
     return sorted(list(sizes), key=sort_key)
 
 def extract_clean_price(soup):
-    for del_tag in soup.find_all(["del", "s", "strike"]):
-        del_tag.decompose()
-    for tag in soup.find_all(style=re.compile(r"text-decoration:\s*line-through", re.I)):
-        tag.decompose()
-        
+    # Nuke all old/strikethrough tags completely from the HTML
+    for tag in soup.find_all(["del", "s", "strike"]): tag.decompose()
+    for tag in soup.find_all(class_=re.compile(r"old|cancel|strikethrough", re.I)): tag.decompose()
+    
+    # Check explicitly defined price blocks
     for el in soup.find_all(class_=re.compile(r"price|amount|selling", re.I)):
-        txt = el.get_text(separator=" ", strip=True).replace(",", "")
-        nums = re.findall(r'\b\d+\b', txt)
-        if nums and int(nums[0]) > 0:
-            return int(nums[0])
+        txt = el.get_text(separator=" ", strip=True).upper()
+        txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
+        nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
+        if nums:
+            return min(nums) # Bulletproof: If it finds 1100 and 10800, it strictly grabs 1100
             
-    for tag in ["h6", "h5", "h4", "span"]:
+    # Fallback to headings
+    for tag in ["h6", "h5", "h4", "h3", "span"]:
         for el in soup.find_all(tag):
-            txt = el.get_text(separator=" ", strip=True).replace(",", "")
-            if "₹" in txt or "RS" in txt.upper():
-                nums = re.findall(r'\b\d+\b', txt)
-                if nums and int(nums[0]) > 0:
-                    return int(nums[0])
+            txt = el.get_text(separator=" ", strip=True).upper()
+            if "₹" in txt or "RS" in txt:
+                txt = re.sub(r'[₹$€£]|RS\.?|INR', ' ', txt).replace(",", "")
+                nums = [int(n) for n in re.findall(r'\b\d+\b', txt) if int(n) > 0]
+                if nums:
+                    return min(nums)
     return 0
 
 def run_sync():
@@ -96,7 +99,7 @@ def run_sync():
 
     supabase: Client = create_client(supabase_url, supabase_key)
     
-    # FETCH DYNAMIC DEEP SYNC LIMIT FROM DATABASE
+    # Read the sync limit from your secret admin panel
     settings_res = supabase.table("settings").select("sync_limit").eq("id", 1).execute()
     sync_limit = settings_res.data[0]["sync_limit"] if settings_res.data else 6
     print(f"--- Configuration Loaded | Scraper Depth Limit: {sync_limit} scrolls ---")
@@ -107,7 +110,7 @@ def run_sync():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=HEADERS["User-Agent"])
         page = context.new_page()
-        page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "image"] else route.continue_())
+        page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "image", "media"] else route.continue_())
 
         for store in vendor_list:
             store_name = store["name"]
@@ -115,7 +118,7 @@ def run_sync():
             print(f"\n--- Scanning Store: {store_name} ---")
 
             try:
-                page.goto(f"{base_url}/allcategory.html", timeout=30000)
+                page.goto(f"{base_url}/allcategory.html", timeout=30000, wait_until="domcontentloaded")
                 soup = BeautifulSoup(page.content(), "html.parser")
                 categories = [a["href"] if a["href"].startswith("http") else f"{base_url}/{a['href'].lstrip('/')}" 
                               for a in soup.find_all("a", href=True) if ".html" in a["href"] and "login" not in a["href"]]
@@ -125,9 +128,8 @@ def run_sync():
             seen_urls = set()
             for cat_url in categories:
                 try:
-                    page.goto(cat_url, timeout=20000)
-                    # DYNAMIC SCROLLING APPLIED HERE
-                    for _ in range(sync_limit): 
+                    page.goto(cat_url, timeout=20000, wait_until="domcontentloaded")
+                    for _ in range(sync_limit):
                         page.keyboard.press("End")
                         time.sleep(0.5)
                         try:
@@ -142,9 +144,11 @@ def run_sync():
                         seen_urls.add(a["href"] if a["href"].startswith("http") else base_url + a["href"])
                 except: continue
 
+            print(f"Discovered {len(seen_urls)} products for {store_name}. Extracting details...")
+
             for prod_url in seen_urls:
                 try:
-                    page.goto(prod_url, timeout=15000)
+                    page.goto(prod_url, timeout=12000, wait_until="domcontentloaded")
                     p_soup = BeautifulSoup(page.content(), "html.parser")
 
                     title = clean_vendor_codes(p_soup.find("h1").get_text(strip=True) if p_soup.find("h1") else "Unknown")
@@ -159,6 +163,7 @@ def run_sync():
                     video_url = extract_video_url(p_soup, base_url)
 
                     if images and base_price > 0:
+                        print(f"✅ Extracted: ₹{base_price} | {title[:40]}...") # Real-time visual confirmation
                         payload = {"vendor": store_name, "category": category, "title": title, "base_price": base_price, "in_stock": "OUT OF STOCK" not in p_soup.get_text().upper(), "images": list(set(images)), "video": video_url, "sizes": sizes, "url": prod_url}
                         supabase.table("products").upsert(payload, on_conflict="url").execute()
                 except: continue
