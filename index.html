@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+   <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -26,7 +26,6 @@
     .btn-add-store { background: #282828; color: #fff; border: 1px solid #444; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
     
     .search-row { max-width: 1400px; margin-inline: auto; }
-    /* Font size strictly 16px to prevent iOS auto-zoom */
     .search-row input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: #fff; padding: 0.75rem 1rem; font-size: 16px; }
 
     .filter-wrapper { max-width: 1400px; margin-inline: auto; padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.6rem; }
@@ -60,26 +59,47 @@
     .out-of-stock { color: #ff4444; }
 
     .btn-action { background: var(--primary); color: #000; border: none; font-weight: 800; padding: 0.8rem; border-radius: 10px; cursor: pointer; margin-top: auto; font-size: 0.9rem; }
-    
     .load-more-btn { display: block; width: calc(100% - 2.4rem); max-width: 400px; margin: 1rem auto 2rem; padding: 1rem; background: #282828; color: #fff; border: 1px solid #444; border-radius: 10px; font-weight: 800; cursor: pointer; text-align: center;}
 
-    /* iPhone Optimized Modal Sheet */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: flex-end; justify-content: center; }
-    .modal { background: #1c1c1c; width: 100%; max-width: 600px; border-radius: 18px 18px 0 0; padding: 1.4rem; max-height: 90vh; overflow-y: auto; border-top: 1px solid #333; display: flex; flex-direction: column; gap: 0.85rem; -webkit-overflow-scrolling: touch; }
+    /* Redesigned Modal layout */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
+    .modal { background: #1c1c1c; width: 100%; max-width: 950px; border-radius: 18px; padding: 1.5rem; max-height: 95vh; overflow-y: auto; border: 1px solid #333; display: flex; flex-direction: column; gap: 1rem; -webkit-overflow-scrolling: touch; }
     
-    .quick-margin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
-    .quick-margin-grid button { background: #262626; color: #fff; border: 1px solid #3c3c3c; padding: 0.6rem; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+    .modal-header { border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; margin-bottom: 0.5rem; }
+    .modal-header h3 { color: var(--primary); font-size: 1.15rem; margin-bottom: 0.4rem; }
+    .modal-header p { font-size: 0.9rem; color: var(--muted); }
+
+    .modal-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.8rem; }
     
-    /* 16px mandatory to stop iOS auto-zoom on inputs */
-    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 16px; font-weight: 800; width: 100%; }
-    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 0.75rem; border-radius: 10px; font-size: 16px; height: 160px; resize: none; width: 100%; line-height: 1.4; -webkit-overflow-scrolling: touch;}
+    .modal-left { display: flex; flex-direction: column; gap: 1rem; }
+    .modal-right { display: flex; flex-direction: column; gap: 1rem; }
+
+    .quick-margin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+    .quick-margin-grid button { background: #262626; color: #fff; border: 1px solid #3c3c3c; padding: 0.7rem 0.4rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: background 0.2s; }
+    .quick-margin-grid button:active { background: var(--primary); color: #000; }
     
-    .staged-actions { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.3rem; }
-    .btn-stage { padding: 0.9rem; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; font-size: 16px; text-align: center; }
+    .price-input { background: #121212; border: 1px solid #444; color: #fff; padding: 0.8rem; border-radius: 10px; font-size: 16px; font-weight: 800; width: 100%; }
+    
+    /* Extra tall text area for desktop */
+    .caption-box { background: #121212; border: 1px solid #444; color: #fff; padding: 1rem; border-radius: 10px; font-size: 16px; flex-grow: 1; min-height: 250px; resize: none; width: 100%; line-height: 1.5; -webkit-overflow-scrolling: touch;}
+    
+    .staged-actions { display: flex; flex-direction: column; gap: 0.6rem; }
+    .btn-stage { padding: 1rem; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; font-size: 16px; text-align: center; }
     .btn-stage-1 { background: #2c3e50; color: #fff; }
     .btn-stage-2 { background: var(--accent-blue); color: #fff; }
     .btn-stage-3 { background: var(--primary); color: #000; }
-    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.8rem; cursor: pointer; font-weight: 700; font-size: 16px; margin-bottom: 20px;}
+    .btn-close { background: transparent; color: var(--muted); border: none; padding: 0.8rem; cursor: pointer; font-weight: 700; font-size: 16px; margin-top: auto;}
+
+    /* Mobile Override for Modal */
+    @media (max-width: 768px) {
+      .modal-overlay { align-items: flex-end; padding: 0; }
+      .modal { max-width: 100%; border-radius: 18px 18px 0 0; padding: 1.2rem; border-left: none; border-right: none; border-bottom: none; }
+      .modal-grid { grid-template-columns: 1fr; gap: 1.2rem; }
+      .caption-box { min-height: 180px; }
+      /* Reverse the visual order on mobile to prioritize text editing */
+      .modal-left { order: 1; }
+      .modal-right { order: 2; }
+    }
   </style>
 </head>
 <body>
@@ -124,33 +144,42 @@
   <div class="grid" id="productGrid"></div>
   <button id="loadMoreBtn" class="load-more-btn" style="display:none;" onclick="loadMore()">Load More Items</button>
 
-  <!-- Share Modal -->
+  <!-- Redesigned Share Modal -->
   <div class="modal-overlay" id="shareModal" onclick="if(event.target === this) closeModal()">
     <div class="modal">
-      <h3 id="modalTitle" style="color: var(--primary); font-size: 1.05rem;"></h3>
-      <div style="font-size: 0.85rem; color: var(--muted);">Listing Price: ₹<span id="modalBasePrice">0</span></div>
-
-      <div class="quick-margin-grid">
-        <button onclick="addMargin(100)">+₹100</button>
-        <button onclick="addMargin(250)">+₹250</button>
-        <button onclick="addMargin(300)">+₹300</button>
-        <button onclick="addMargin(500)">+₹500</button>
-        <button onclick="addMargin(700)">+₹700</button>
-        <button onclick="addMargin(800)">+₹800</button>
-        <button onclick="addMargin(1000)">+₹1000</button>
-        <button onclick="resetMargin()" style="background:#442222;">Reset</button>
+      <div class="modal-header">
+        <h3 id="modalTitle"></h3>
+        <p>Original Listing Price: ₹<span id="modalBasePrice">0</span></p>
       </div>
 
-      <input type="number" id="finalPriceInput" class="price-input" oninput="updateCaption()" placeholder="Final Selling Price (₹)"/>
-      <textarea id="customCaption" class="caption-box"></textarea>
+      <div class="modal-grid">
+        <!-- Left Side: Pricing & Text -->
+        <div class="modal-left">
+          <div class="quick-margin-grid">
+            <button onclick="addMargin(100)">+₹100</button>
+            <button onclick="addMargin(250)">+₹250</button>
+            <button onclick="addMargin(300)">+₹300</button>
+            <button onclick="addMargin(500)">+₹500</button>
+            <button onclick="addMargin(700)">+₹700</button>
+            <button onclick="addMargin(800)">+₹800</button>
+            <button onclick="addMargin(1000)">+₹1000</button>
+            <button onclick="resetMargin()" style="background:#442222; border-color:#553333;">Reset</button>
+          </div>
+          <input type="number" id="finalPriceInput" class="price-input" oninput="updateCaption()" placeholder="Final Selling Price (₹)"/>
+          <textarea id="customCaption" class="caption-box"></textarea>
+        </div>
 
-      <video id="modalVideo" style="display:none; width: 100%; border-radius: 10px; max-height: 200px; background: #000;" controls playsinline></video>
-
-      <div class="staged-actions">
-        <button class="btn-stage btn-stage-1" onclick="shareOrDownloadImages()">📸 Step 1: Download / Share Images</button>
-        <button class="btn-stage btn-stage-2" id="btnShareVideo" style="display:none;" onclick="directShareOrDownloadVideo()">🎥 Step 2: Share / Download Video</button>
-        <button class="btn-stage btn-stage-3" onclick="copyCaptionAndLaunchWA()">📋 Step 3: Copy Text & Open WhatsApp</button>
-        <button class="btn-close" onclick="closeModal()">Dismiss</button>
+        <!-- Right Side: Media & Actions -->
+        <div class="modal-right">
+          <video id="modalVideo" style="display:none; width: 100%; border-radius: 10px; max-height: 220px; background: #000;" controls playsinline></video>
+          
+          <div class="staged-actions">
+            <button class="btn-stage btn-stage-1" onclick="shareOrDownloadImages()">📸 Step 1: Download / Share Images</button>
+            <button class="btn-stage btn-stage-2" id="btnShareVideo" style="display:none;" onclick="directShareOrDownloadVideo()">🎥 Step 2: Share / Download Video</button>
+            <button class="btn-stage btn-stage-3" onclick="copyCaptionAndLaunchWA()">📋 Step 3: Copy Text & Open WhatsApp</button>
+          </div>
+          <button class="btn-close" onclick="closeModal()">Dismiss</button>
+        </div>
       </div>
     </div>
   </div>
@@ -262,7 +291,6 @@
       if (cat === 'footwear') {
         let sizeStr = "Please confirm availability in DM";
         if (p.sizes && p.sizes.length) {
-          // Detect if it's EU (30s/40s) or UK (single digits/teens) to format beautifully
           if (p.sizes[0].includes("UK") || p.sizes[0].includes("US") || p.sizes[0] < 20) {
              sizeStr = p.sizes.join(', ');
           } else {
@@ -302,8 +330,6 @@
         shareVidBtn.style.display = 'none';
       }
       document.getElementById('shareModal').style.display = 'flex';
-      
-      // Prevents body scrolling behind modal on iPhone
       document.body.style.overflow = 'hidden'; 
     }
 
